@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+*.log
+venv/
+.venv/
+model_code.txt
+test_mesh.py

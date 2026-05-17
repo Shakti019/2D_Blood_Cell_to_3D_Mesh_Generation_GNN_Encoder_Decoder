@@ -1,0 +1,640 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CytoGraph — Classify</title>
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      * { scrollbar-width: none; -ms-overflow-style: none; }
+      *::-webkit-scrollbar { display: none; }
+      /* Responsive 3D plot height */
+      #plot-div { height: 55vh; }
+      @media (min-width: 1024px) { #plot-div { height: 80vh; } }
+      /* Gallery grid tiles */
+      #gallery-grid-inline { display: flex; flex-wrap: wrap; gap: 0.625rem; }
+      .gallery-tile { width: 80px; height: 80px; flex-shrink: 0; }
+      @media (min-width: 640px) { .gallery-tile { width: 90px; height: 90px; } }
+      @media (min-width: 1024px) { .gallery-tile { width: 100px; height: 100px; } }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-gray-800 flex flex-col">
+  <!-- Mini nav -->
+  <nav class="bg-white border-b border-slate-200 h-12 flex items-center px-4 sm:px-6 gap-4 sm:gap-6 text-sm font-medium shrink-0">
+    <a href="/" class="flex items-center gap-1.5 font-bold text-blue-900">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M8 8c1.5 1 3.5 1 5 0M8 16c1.5-1 3.5-1 5 0M12 3v18"/>
+      </svg>
+      CytoGraph
+    </a>
+    <a href="/" class="text-gray-400 hover:text-blue-700 transition">Home</a>
+  </nav>
+    <div id="page-wrap" class="flex-1 flex flex-col items-center justify-start px-3 sm:px-4 py-5 sm:py-8 transition-all">
+        <!-- ── Upload + Gallery side-by-side ─────────────────────────────── -->
+        <div id="upload-wrap" class="w-full max-w-6xl">
+          <h1 class="text-2xl sm:text-3xl font-bold text-center text-blue-900 mb-4 sm:mb-6">CytoGraph</h1>
+
+          <div class="flex flex-col lg:flex-row gap-4 sm:gap-6 items-start">
+
+            <!-- LEFT: Upload panel -->
+            <div class="w-full lg:w-72 xl:w-80 shrink-0 flex flex-col gap-3">
+              <form id="upload-form" class="flex flex-col gap-3">
+                <!-- Drop zone -->
+                <label for="image-input" id="drop-zone"
+                    class="flex flex-col items-center justify-center w-full cursor-pointer
+                           rounded-2xl border-2 border-dashed border-blue-300 bg-white
+                           hover:border-blue-500 hover:bg-blue-50 transition-all duration-200
+                           py-8 sm:py-10 px-4 sm:px-6 text-center select-none relative overflow-hidden"
+                    style="min-height:180px">
+                    <img id="img-preview" src="" alt="preview"
+                        class="hidden absolute inset-0 w-full h-full object-contain rounded-2xl bg-white" />
+                    <div id="drop-placeholder" class="flex flex-col items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-blue-400 mb-3" fill="none"
+                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4 4 4"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1"/>
+                        </svg>
+                        <span class="text-base font-semibold text-blue-700 mb-1">Drop image here</span>
+                        <span class="text-xs text-gray-400 mb-3">or click to browse — JPG, PNG</span>
+                        <span id="file-name" class="text-xs text-gray-500 italic">No file selected</span>
+                    </div>
+                    <div id="drop-selected" class="hidden absolute bottom-0 left-0 right-0 bg-black/40 text-white text-xs py-1.5 text-center rounded-b-2xl">
+                        <span id="file-name-overlay"></span> &middot; click to change
+                    </div>
+                    <input type="file" id="image-input" accept="image/*" class="hidden" required>
+                </label>
+
+                <button type="submit"
+                    class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800
+                           text-white font-bold py-3 px-6 rounded-xl text-sm transition-all duration-150
+                           flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25h12A2.25 2.25 0 0020.25 18v-3.75M16.5 3.75h3.75v3.75M13.5 10.5l6.75-6.75"/>
+                    </svg>
+                    Classify &amp; Generate 3D Mesh
+                </button>
+              </form>
+
+              <div id="loading" class="hidden flex flex-col items-center gap-3 text-blue-600 font-semibold py-4">
+                  <svg class="animate-spin w-7 h-7 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                  <span class="text-sm">Processing &amp; running GNN model…</span>
+              </div>
+            </div>
+
+            <!-- RIGHT: Inline gallery panel -->
+            <div class="flex-1 bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col" style="min-height:320px">
+              <!-- Gallery header + category tabs -->
+              <div class="px-3 sm:px-4 pt-3 sm:pt-4 pb-2 sm:pb-3 border-b border-slate-100">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2 sm:mb-3">Sample Gallery — click any image to use it</p>
+                <div class="flex flex-wrap gap-1.5" id="gallery-tabs-inline"></div>
+              </div>
+              <!-- Image grid -->
+              <div id="gallery-grid-inline" class="p-3 sm:p-4"></div>
+            </div>
+
+          </div>
+        </div><!-- /upload-wrap -->
+
+        <div id="results" class="hidden w-full">
+            <!-- Top bar: title + new upload button -->
+            <div class="flex items-center justify-between mb-6">
+                <h1 class="text-2xl font-bold text-blue-900">CytoGraph</h1>
+                <button onclick="resetUpload()"
+                    class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-all duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none"
+                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 0L8 8m4-4 4 4"/>
+                    </svg>
+                    New Upload
+                </button>
+            </div>
+            <!-- Prediction + 3D mesh -->
+            <div class="flex flex-col lg:flex-row gap-4 sm:gap-6 mb-6 sm:mb-8" style="align-items:stretch">
+                <div class="bg-slate-100 p-4 sm:p-6 flex flex-col gap-4 w-full lg:w-72 xl:w-80 lg:shrink-0">
+
+                    <!-- Predicted class badge -->
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">Predicted Class</p>
+                        <div id="pred-class-badge"
+                            class="inline-block px-4 py-1 rounded-full text-white text-sm font-bold bg-blue-600 mb-2"></div>
+                        <div id="pred-confidence"
+                            class="text-5xl font-extrabold text-gray-800 leading-none"></div>
+                        <p class="text-xs text-gray-400 mt-1">confidence</p>
+                    </div>
+
+                    <hr class="border-slate-300">
+
+                    <!-- Class probability bars -->
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">All Classes</p>
+                        <ul id="pred-probs" class="space-y-3 text-sm"></ul>
+                    </div>
+                </div>
+                <div class="bg-slate-100 p-3 sm:p-4 flex flex-col flex-1">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3 sm:mb-4">
+                        <h2 class="text-base sm:text-xl font-semibold">3D Nucleus Mesh</h2>
+                        <div class="flex gap-1.5 sm:gap-2 text-xs sm:text-sm flex-wrap">
+                            <button id="btn-solid" onclick="setView('solid')"
+                                class="px-3 py-1 rounded font-semibold bg-blue-600 text-white transition">Solid</button>
+                            <button id="btn-nodes" onclick="setView('nodes')"
+                                class="px-3 py-1 rounded font-semibold bg-gray-200 text-gray-700 hover:bg-blue-100 transition">Nodes</button>
+                            <button id="btn-both" onclick="setView('both')"
+                                class="px-3 py-1 rounded font-semibold bg-gray-200 text-gray-700 hover:bg-blue-100 transition">Mesh + Nodes</button>
+                            <span class="border-l border-slate-300 mx-1"></span>
+                            <button onclick="showMeshTable()"
+                                class="px-3 py-1 rounded font-semibold bg-slate-700 text-white hover:bg-slate-800 transition flex items-center gap-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M3 6h18M3 18h18"/>
+                                </svg>
+                                Table Data
+                            </button>
+                        </div>
+                    </div>
+                    <div id="plot-div" class="w-full"></div>
+                    <p class="text-xs text-gray-400 mt-2 hidden sm:block">Scroll to zoom · Drag to rotate · Hover a node to read its X/Y/Z position and RGB color</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Show image preview inside drop zone
+        function showPreview(file) {
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            const preview = document.getElementById("img-preview");
+            preview.src = url;
+            preview.classList.remove("hidden");
+            document.getElementById("drop-placeholder").classList.add("hidden");
+            document.getElementById("drop-selected").classList.remove("hidden");
+            document.getElementById("file-name-overlay").textContent = file.name;
+            document.getElementById("file-name").textContent = file.name;
+            const dzone = document.getElementById("drop-zone");
+            dzone.classList.add("border-blue-500");
+            dzone.classList.remove("py-14", "px-8");
+            dzone.style.minHeight = "240px";
+        }
+
+        function resetPreview() {
+            const preview = document.getElementById("img-preview");
+            preview.src = "";
+            preview.classList.add("hidden");
+            document.getElementById("drop-placeholder").classList.remove("hidden");
+            document.getElementById("drop-selected").classList.add("hidden");
+            document.getElementById("file-name").textContent = "No file selected";
+            const dzone = document.getElementById("drop-zone");
+            dzone.classList.remove("border-blue-500", "bg-blue-50");
+            dzone.classList.add("py-14", "px-8");
+            dzone.style.minHeight = "";
+        }
+
+        // Show selected filename in drop zone
+        document.getElementById("image-input").addEventListener("change", (e) => {
+            if (e.target.files[0]) showPreview(e.target.files[0]);
+        });
+
+        // Drag-and-drop support
+        const dz = document.getElementById("drop-zone");
+        dz.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("border-blue-500","bg-blue-50"); });
+        dz.addEventListener("dragleave", () => { dz.classList.remove("border-blue-500","bg-blue-50"); });
+        dz.addEventListener("drop", (e) => {
+            e.preventDefault();
+            const files = e.dataTransfer.files;
+            if (files.length) {
+                document.getElementById("image-input").files = files;
+                showPreview(files[0]);
+            }
+        });
+
+        document.getElementById("upload-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const fileInput = document.getElementById("image-input");
+            if (fileInput.files.length === 0) return;
+
+            const formData = new FormData();
+            formData.append("file", fileInput.files[0]);
+
+            document.getElementById("loading").classList.remove("hidden");
+            document.getElementById("results").classList.add("hidden");
+
+            try {
+                const response = await fetch("/api/predict", {
+                    method: "POST",
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const err = await response.text();
+                    throw new Error(err);
+                }
+
+                const data = await response.json();
+
+                // Predicted class badge + confidence
+                const pct = (data.confidence * 100);
+                document.getElementById("pred-class-badge").textContent = data.predicted_class;
+                document.getElementById("pred-confidence").textContent = pct.toFixed(1) + "%";
+
+                // Color badge by confidence level
+                const badge = document.getElementById("pred-class-badge");
+                const conf = document.getElementById("pred-confidence");
+                if (pct >= 80) {
+                    badge.className = badge.className.replace(/bg-\S+/, "bg-emerald-600");
+                    conf.className = conf.className.replace(/text-gray-800/, "text-emerald-700");
+                } else if (pct >= 50) {
+                    badge.className = badge.className.replace(/bg-\S+/, "bg-blue-600");
+                    conf.className = conf.className.replace(/text-gray-800/, "text-blue-700");
+                } else {
+                    badge.className = badge.className.replace(/bg-\S+/, "bg-amber-500");
+                    conf.className = conf.className.replace(/text-gray-800/, "text-amber-700");
+                }
+
+                // Class probability bars — sorted highest first
+                const probsList = document.getElementById("pred-probs");
+                probsList.innerHTML = "";
+                const sorted = Object.entries(data.percentages).sort((a, b) => parseFloat(b[1]) - parseFloat(a[1]));
+                const topClass = sorted[0][0];
+                sorted.forEach(([cls, rawPct]) => {
+                    const val = parseFloat(rawPct);
+                    const isTop = cls === topClass;
+                    const barColor = isTop ? "bg-blue-500" : "bg-slate-300";
+                    const labelColor = isTop ? "font-bold text-gray-900" : "text-gray-500";
+                    probsList.innerHTML +=
+                        "<li>" +
+                          "<div class='flex justify-between mb-0.5'>" +
+                            "<span class='text-xs " + labelColor + "'>" + cls + "</span>" +
+                            "<span class='text-xs font-semibold " + (isTop ? "text-blue-600" : "text-gray-400") + "'>" + val.toFixed(2) + "%</span>" +
+                          "</div>" +
+                          "<div class='w-full bg-slate-200 rounded-full h-2'>" +
+                            "<div class='" + barColor + " h-2 rounded-full transition-all duration-500' style='width:" + Math.min(val, 100) + "%'></div>" +
+                          "</div>" +
+                        "</li>";
+                });
+
+                _lastTableData = data.mesh_data.table_data || [];
+                render3DMesh(data.mesh_data);
+                document.getElementById("results").classList.remove("hidden");
+                // Hide upload wrap, switch to top-aligned full layout
+                document.getElementById("upload-wrap").classList.add("hidden");
+                const wrap = document.getElementById("page-wrap");
+                wrap.classList.remove("items-center", "justify-center");
+                wrap.classList.add("items-start", "justify-start");
+            } catch (error) {
+                alert("Error: " + error.message);
+            } finally {
+                document.getElementById("loading").classList.add("hidden");
+            }
+        });
+
+        function resetUpload() {
+            // Hide results, show upload wrap, restore centered layout
+            document.getElementById("results").classList.add("hidden");
+            document.getElementById("upload-wrap").classList.remove("hidden");
+            const wrap = document.getElementById("page-wrap");
+            wrap.classList.add("items-center", "justify-center");
+            wrap.classList.remove("items-start", "justify-start");
+            // Reset form
+            document.getElementById("upload-form").reset();
+            resetPreview();
+            _lastMesh = null;
+            _lastTableData = null;
+            _currentView = 'solid';
+        }
+
+        let _lastMesh = null;
+        let _lastTableData = null;
+        let _currentView = 'solid';
+
+        function setView(mode) {
+            _currentView = mode;
+            ['solid','nodes','both'].forEach(m => {
+                const btn = document.getElementById('btn-' + m);
+                btn.className = m === mode
+                    ? 'px-3 py-1 rounded font-semibold bg-blue-600 text-white transition'
+                    : 'px-3 py-1 rounded font-semibold bg-gray-200 text-gray-700 hover:bg-blue-100 transition';
+            });
+            if (_lastMesh) render3DMesh(_lastMesh);
+        }
+
+        function render3DMesh(mesh) {
+            _lastMesh = mesh;
+            const { x, y, z, r, g, b, faces_i, faces_j, faces_k, face_colors } = mesh;
+            const mode = _currentView;
+
+            // Build per-node hex color strings and hover text
+            const nodeColors = x.map((_, i) => {
+                const ri = Math.round(r[i] * 255);
+                const gi = Math.round(g[i] * 255);
+                const bi = Math.round(b[i] * 255);
+                return 'rgb(' + ri + ',' + gi + ',' + bi + ')';
+            });
+            const hoverText = x.map((_, i) => {
+                const ri = Math.round(r[i] * 255);
+                const gi = Math.round(g[i] * 255);
+                const bi = Math.round(b[i] * 255);
+                return 'X: ' + x[i].toFixed(1) + '<br>Y: ' + y[i].toFixed(1) + '<br>Z: ' + z[i].toFixed(1) +
+                       '<br>RGB: (' + ri + ', ' + gi + ', ' + bi + ')';
+            });
+
+            const solidTrace = {
+                type: "mesh3d",
+                x, y, z,
+                i: faces_i, j: faces_j, k: faces_k,
+                facecolor: face_colors,
+                flatshading: true,
+                opacity: mode === 'both' ? 0.55 : 1.0,
+                hoverinfo: "none",
+                name: "Solid Mesh",
+                lighting: { ambient: 0.85, diffuse: 0.9, specular: 0.1, roughness: 0.8 },
+                lightposition: { x: 100, y: 200, z: 150 }
+            };
+
+            const nodeTrace = {
+                type: "scatter3d",
+                x, y, z,
+                mode: "markers",
+                name: "Pixel Nodes",
+                marker: {
+                    size: mode === 'nodes' ? 4 : 3,
+                    color: nodeColors,
+                    opacity: 1.0,
+                    line: { width: 0 }
+                },
+                text: hoverText,
+                hovertemplate: "%{text}<extra></extra>"
+            };
+
+            let traces = [];
+            if (mode === 'solid') traces = [solidTrace];
+            else if (mode === 'nodes') traces = [nodeTrace];
+            else traces = [solidTrace, nodeTrace];
+
+            // Compute axis range for equal aspect ratio
+            const allVals = [x, y, z];
+            const mins = allVals.map(a => Math.min(...a));
+            const maxs = allVals.map(a => Math.max(...a));
+            const mid  = mins.map((m, i) => (m + maxs[i]) / 2);
+            const half = Math.max(...maxs.map((m, i) => m - mins[i])) / 2 * 1.05;
+
+            const axisStyle = {
+                showgrid: true,
+                gridcolor: "#d1d5db",
+                gridwidth: 1,
+                zeroline: true,
+                zerolinecolor: "#6b7280",
+                zerolinewidth: 1.5,
+                showline: true,
+                linecolor: "#374151",
+                linewidth: 2,
+                showticklabels: true,
+                tickfont: { size: 10, color: "#374151" },
+                titlefont: { size: 13, color: "#111827", family: "monospace" },
+                showspikes: true,
+                spikecolor: "#ef4444",
+                spikethickness: 1.5
+            };
+
+            const layout = {
+                margin: { l: 10, r: 10, b: 10, t: 10 },
+                paper_bgcolor: "#f1f5f9",
+                scene: {
+                    bgcolor: "#f1f5f9",
+                    xaxis: { ...axisStyle, title: "X (px)", range: [mid[0]-half, mid[0]+half] },
+                    yaxis: { ...axisStyle, title: "Y (px)", range: [mid[1]-half, mid[1]+half] },
+                    zaxis: { ...axisStyle, title: "Z (px)", range: [mid[2]-half, mid[2]+half] },
+                    aspectmode: "cube",
+                    camera: { eye: { x: 1.6, y: 1.6, z: 1.1 } }
+                },
+                showlegend: mode === 'both',
+                legend: { x: 0.01, y: 0.99, bgcolor: "rgba(241,245,249,0.9)", borderwidth: 0 }
+            };
+
+            const config = {
+                scrollZoom: true,
+                displayModeBar: true,
+                modeBarButtonsToAdd: [],
+                toImageButtonOptions: { format: "png", filename: "nucleus_3d" }
+            };
+
+            Plotly.newPlot("plot-div", traces, layout, config);
+        }
+        // ── Mesh Table Modal ─────────────────────────────────────────────────
+        function showMeshTable() {
+            if (!_lastTableData || _lastTableData.length === 0) return;
+            const rows = _lastTableData;
+            const cols = Object.keys(rows[0]);
+
+            // RGB-triplet start columns → show color swatch on that cell
+            const rgbSwatchCols = {
+                'Node1_R': ['Node1_R','Node1_G','Node1_B'],
+                'Node2_R': ['Node2_R','Node2_G','Node2_B'],
+                'Line_Avg_R': ['Line_Avg_R','Line_Avg_G','Line_Avg_B']
+            };
+
+            // Build header
+            document.getElementById('mesh-table-head').innerHTML =
+                cols.map(c => `<th class="px-3 py-2 whitespace-nowrap border-b-2 border-slate-300 text-left text-gray-700">${c}</th>`).join('');
+
+            // Build body
+            document.getElementById('mesh-table-body').innerHTML = rows.map((row, ri) => {
+                const bg = ri % 2 === 0 ? 'bg-white' : 'bg-slate-50';
+                const cells = cols.map(c => {
+                    const val = row[c];
+                    if (rgbSwatchCols[c]) {
+                        const [rc, gc, bc] = rgbSwatchCols[c];
+                        const sw = `<span class="inline-block w-3 h-3 rounded-sm mr-1 align-middle border border-slate-200" style="background:rgb(${row[rc]},${row[gc]},${row[bc]})"></span>`;
+                        return `<td class="px-3 py-1.5 whitespace-nowrap">${sw}${val}</td>`;
+                    }
+                    return `<td class="px-3 py-1.5 whitespace-nowrap">${val}</td>`;
+                }).join('');
+                return `<tr class="${bg}">${cells}</tr>`;
+            }).join('');
+
+            document.getElementById('table-row-count').textContent = rows.length + ' edges';
+            document.getElementById('table-modal').classList.remove('hidden');
+        }
+
+        function closeMeshTable() {
+            document.getElementById('table-modal').classList.add('hidden');
+        }
+
+        function downloadTableCSV() {
+            if (!_lastTableData || _lastTableData.length === 0) return;
+            const rows = _lastTableData;
+            const cols = Object.keys(rows[0]);
+            const csv = [cols.join(',')]
+                .concat(rows.map(row => cols.map(c => JSON.stringify(row[c])).join(',')))
+                .join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'mesh_edge_data.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Close modal on backdrop click
+        document.getElementById('table-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeMeshTable();
+        });
+    </script>
+
+    <!-- ── Mesh Table Modal ──────────────────────────────────────────────── -->
+    <div id="table-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div class="bg-white rounded-2xl flex flex-col" style="width:94vw;max-height:90vh">
+            <!-- Modal header -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
+                <div class="flex items-center gap-3">
+                    <h3 class="text-lg font-bold text-gray-900">Mesh Edge Data Table</h3>
+                    <span id="table-row-count" class="text-xs bg-blue-100 text-blue-700 font-semibold px-2.5 py-0.5 rounded-full"></span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="downloadTableCSV()"
+                        class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1.5 px-4 rounded-lg text-sm transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 4v12m0 0l-4-4m4 4l4-4"/>
+                        </svg>
+                        Download CSV
+                    </button>
+                    <button onclick="closeMeshTable()"
+                        class="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-slate-100 transition">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Scrollable table -->
+            <div class="overflow-auto flex-1 px-2 py-2">
+                <table class="text-xs border-collapse min-w-max w-full">
+                    <thead class="sticky top-0 z-10 bg-slate-100">
+                        <tr id="mesh-table-head"></tr>
+                    </thead>
+                    <tbody id="mesh-table-body"></tbody>
+                </table>
+            </div>
+            <p class="text-xs text-gray-400 px-6 py-2.5 border-t border-slate-100">
+                Each row is one GNN graph edge. Node1 &amp; Node2 are 3D-projected nucleus pixels. Edge_Length is Euclidean 3D distance. Color swatches show actual pixel color.
+            </p>
+        </div>
+    </div>
+
+    <!-- ─── GALLERY SCRIPT (inline panel) ───────────────────────────────── -->
+    <script>
+      const GALLERY = {
+        basophil:     ['BA_100102.jpg','BA_101381.jpg','BA_101611.jpg','BA_102039.jpg','BA_102750.jpg','BA_10387.jpg','BA_10622.jpg','BA_107595.jpg','BA_107876.jpg','BA_111710.jpg'],
+        eosinophil:   ['EO_100213.jpg','EO_1007.jpg','EO_100884.jpg','EO_10150.jpg','EO_101772.jpg','EO_101852.jpg','EO_103649.jpg','EO_103746.jpg','EO_103851.jpg','EO_103957.jpg'],
+        erythroblast: ['ERB_101031.jpg','ERB_101277.jpg','ERB_10157.jpg','ERB_101704.jpg','ERB_101733.jpg','ERB_102372.jpg','ERB_102733.jpg','ERB_103778.jpg','ERB_104326.jpg','ERB_104607.jpg'],
+        ig:           ['IG_101958.jpg','IG_102433.jpg','IG_110946.jpg','IG_111589.jpg','IG_115116.jpg','IG_119514.jpg','IG_132866.jpg','IG_146565.jpg','IG_150106.jpg','IG_157249.jpg'],
+        lymphocyte:   ['LY_100275.jpg','LY_102859.jpg','LY_10361.jpg','LY_104129.jpg','LY_104155.jpg','LY_105283.jpg','LY_106354.jpg','LY_107981.jpg','LY_109025.jpg','LY_109093.jpg'],
+        monocyte:     ['MO_100695.jpg','MO_101258.jpg','MO_102400.jpg','MO_103089.jpg','MO_103756.jpg','MO_104290.jpg','MO_104431.jpg','MO_104441.jpg','MO_104451.jpg','MO_104742.jpg'],
+        neutrophil:   ['BNE_100878.jpg','BNE_101007.jpg','BNE_101082.jpg','BNE_101234.jpg','BNE_102129.jpg','BNE_102203.jpg','BNE_102779.jpg','BNE_102912.jpg','BNE_103440.jpg','BNE_104344.jpg'],
+        platelet:     ['PLATELET_100161.jpg','PLATELET_100529.jpg','PLATELET_100790.jpg','PLATELET_101132.jpg','PLATELET_10233.jpg','PLATELET_102535.jpg','PLATELET_103295.jpg','PLATELET_104489.jpg','PLATELET_104945.jpg','PLATELET_105490.jpg'],
+      };
+
+      const CAT_COLORS = {
+        basophil:'bg-purple-100 text-purple-700 border-purple-300',
+        eosinophil:'bg-pink-100 text-pink-700 border-pink-300',
+        erythroblast:'bg-red-100 text-red-700 border-red-300',
+        ig:'bg-orange-100 text-orange-700 border-orange-300',
+        lymphocyte:'bg-blue-100 text-blue-700 border-blue-300',
+        monocyte:'bg-teal-100 text-teal-700 border-teal-300',
+        neutrophil:'bg-indigo-100 text-indigo-700 border-indigo-300',
+        platelet:'bg-yellow-100 text-yellow-700 border-yellow-300',
+      };
+      const CAT_ACTIVE = {
+        basophil:'bg-purple-600 text-white border-purple-600',
+        eosinophil:'bg-pink-600 text-white border-pink-600',
+        erythroblast:'bg-red-600 text-white border-red-600',
+        ig:'bg-orange-500 text-white border-orange-500',
+        lymphocyte:'bg-blue-600 text-white border-blue-600',
+        monocyte:'bg-teal-600 text-white border-teal-600',
+        neutrophil:'bg-indigo-600 text-white border-indigo-600',
+        platelet:'bg-yellow-500 text-white border-yellow-500',
+      };
+
+      let activeGalleryTab = 'basophil';
+
+      function buildInlineGallery() {
+        // Build tabs
+        const tabContainer = document.getElementById('gallery-tabs-inline');
+        tabContainer.innerHTML = '';
+        Object.keys(GALLERY).forEach(cat => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          const label = cat === 'ig' ? 'IG' : cat.charAt(0).toUpperCase() + cat.slice(1);
+          btn.textContent = label;
+          btn.id = 'itab-' + cat;
+          btn.className = 'px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-150 ' +
+            (cat === activeGalleryTab ? CAT_ACTIVE[cat] : CAT_COLORS[cat]);
+          btn.onclick = () => switchInlineTab(cat);
+          tabContainer.appendChild(btn);
+        });
+        renderInlineGrid(activeGalleryTab);
+      }
+
+      function switchInlineTab(cat) {
+        const oldBtn = document.getElementById('itab-' + activeGalleryTab);
+        if (oldBtn) oldBtn.className = oldBtn.className.replace(CAT_ACTIVE[activeGalleryTab], CAT_COLORS[activeGalleryTab]);
+        activeGalleryTab = cat;
+        const newBtn = document.getElementById('itab-' + cat);
+        if (newBtn) newBtn.className = newBtn.className.replace(CAT_COLORS[cat], CAT_ACTIVE[cat]);
+        renderInlineGrid(cat);
+      }
+
+      function renderInlineGrid(cat) {
+        const grid = document.getElementById('gallery-grid-inline');
+        grid.innerHTML = '';
+        GALLERY[cat].forEach(fname => {
+          const url = `/static/samples/${cat}/${fname}`;
+          const wrapper = document.createElement('div');
+          wrapper.className = 'group relative cursor-pointer rounded-xl overflow-hidden border-2 border-transparent hover:border-blue-500 transition-all duration-150 bg-slate-50 shrink-0';
+          wrapper.className += ' gallery-tile';
+        wrapper.style.cssText = '';
+          wrapper.title = fname;
+          wrapper.onclick = () => selectGalleryImage(cat, fname, url);
+
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = cat;
+          img.className = 'w-full h-full object-cover transition-transform duration-200 group-hover:scale-110';
+          img.loading = 'lazy';
+
+          const overlay = document.createElement('div');
+          overlay.className = 'absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/25 flex items-center justify-center transition-all duration-150';
+          overlay.innerHTML = `<svg class="w-7 h-7 text-white opacity-0 group-hover:opacity-100 drop-shadow transition-all duration-150" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+
+          wrapper.appendChild(img);
+          wrapper.appendChild(overlay);
+          grid.appendChild(wrapper);
+        });
+      }
+
+      async function selectGalleryImage(cat, fname, url) {
+        try {
+          const resp = await fetch(url);
+          const blob = await resp.blob();
+          const file = new File([blob], fname, { type: blob.type || 'image/jpeg' });
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          document.getElementById('image-input').files = dt.files;
+          showPreview(file);
+        } catch (err) {
+          alert('Could not load image: ' + err.message);
+        }
+      }
+
+      // Init gallery on page load
+      document.addEventListener('DOMContentLoaded', buildInlineGallery);
+    </script>
+
+</body>
+</html>
