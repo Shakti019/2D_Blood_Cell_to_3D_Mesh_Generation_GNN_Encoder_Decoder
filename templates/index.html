@@ -1,640 +1,1241 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CytoGraph — Classify</title>
-    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      * { scrollbar-width: none; -ms-overflow-style: none; }
-      *::-webkit-scrollbar { display: none; }
-      /* Responsive 3D plot height */
-      #plot-div { height: 55vh; }
-      @media (min-width: 1024px) { #plot-div { height: 80vh; } }
-      /* Gallery grid tiles */
-      #gallery-grid-inline { display: flex; flex-wrap: wrap; gap: 0.625rem; }
-      .gallery-tile { width: 80px; height: 80px; flex-shrink: 0; }
-      @media (min-width: 640px) { .gallery-tile { width: 90px; height: 90px; } }
-      @media (min-width: 1024px) { .gallery-tile { width: 100px; height: 100px; } }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CytoGraph — Classifier</title>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body{height:100%;overflow:hidden;margin:0;}
+    *,*::before,*::after{box-sizing:border-box;}
+    *{scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent;}
+    *::-webkit-scrollbar{width:5px;height:5px;}
+    *::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px;}
+    #app-root{display:flex;flex-direction:column;height:100vh;background:#f1f5f9;font-family:ui-sans-serif,system-ui,sans-serif;}
+    #app-main{display:flex;flex:1;overflow:hidden;min-height:0;}
+    /* Panels */
+    #left-panel{width:280px;flex-shrink:0;background:#fff;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;overflow:hidden;}
+    #center-panel{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+    #right-panel{width:260px;flex-shrink:0;background:#fff;border-left:1px solid #e2e8f0;display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;}
+    /* Toolbar */
+    #toolbar{height:46px;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;padding:0 10px;gap:3px;flex-shrink:0;overflow-x:auto;}
+    /* Canvas */
+    #canvas-wrap{flex:1;overflow-y:auto;overflow-x:hidden;background:#f1f5f9;padding:14px;position:relative;}
+    #cards-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+    /* Empty state */
+    #empty-state{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+    /* Status bar */
+    #status-bar{height:30px;background:#fff;border-top:1px solid #e2e8f0;display:flex;align-items:center;padding:0 14px;font-size:11px;color:#64748b;flex-shrink:0;user-select:none;}
+    /* Toolbar buttons */
+    .tb-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:6px;font-size:12px;font-weight:600;border:1px solid transparent;cursor:pointer;transition:all .12s;white-space:nowrap;line-height:1;}
+    .tb-btn.v-act{background:#2563eb;color:#fff;border-color:#2563eb;}
+    .tb-btn.v-in{background:#f1f5f9;color:#475569;border-color:#e2e8f0;}
+    .tb-btn.v-in:hover{background:#e2e8f0;}
+    .tb-btn.green{background:#059669;color:#fff;border-color:#059669;}
+    .tb-btn.green:hover{background:#047857;}
+    .tb-btn.amber{background:#d97706;color:#fff;border-color:#d97706;}
+    .tb-btn.slate{background:#475569;color:#fff;border-color:#475569;}
+    .tb-btn.slate:hover{background:#334155;}
+    .tb-btn.red{background:#dc2626;color:#fff;border-color:#dc2626;}
+    .tb-btn.red:hover{background:#b91c1c;}
+    .tb-btn:disabled{opacity:.4;cursor:not-allowed;}
+    .tb-sep{width:1px;height:22px;background:#e2e8f0;margin:0 4px;flex-shrink:0;}
+    /* Gallery */
+    .g-tile{width:76px;height:76px;border-radius:8px;object-fit:cover;border:2.5px solid #e2e8f0;cursor:pointer;transition:all .15s;display:block;}
+    .g-wrapper{position:relative;width:76px;height:76px;cursor:pointer;border-radius:8px;overflow:hidden;flex-shrink:0;border:2.5px solid #e2e8f0;transition:all .15s;background:#f8fafc;}
+    .g-wrapper:hover{border-color:#93c5fd;transform:scale(1.05);box-shadow:0 2px 12px rgba(0,0,0,.1);}
+    .g-wrapper.g-sel{border-color:#2563eb!important;box-shadow:0 0 0 3px rgba(37,99,235,.2)!important;}
+    .g-wrapper .g-tile{width:100%;height:100%;border:none;border-radius:0;}
+    .g-overlay{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;background:transparent;transition:background .15s;pointer-events:none;z-index:1;}
+    .g-wrapper:hover .g-overlay{background:rgba(37,99,235,.25);}
+    .g-wrapper.g-sel .g-overlay{background:rgba(37,99,235,.12);}
+    .g-overlay-lbl{font-size:9px;font-weight:700;color:#fff;background:rgba(0,0,0,.5);padding:2px 0;width:100%;text-align:center;opacity:0;transform:translateY(4px);transition:all .15s;}
+    .g-wrapper:hover .g-overlay-lbl{opacity:1;transform:translateY(0);}
+    .g-chk{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:#2563eb;color:#fff;font-size:11px;font-weight:800;display:none;align-items:center;justify-content:center;z-index:3;box-shadow:0 1px 4px rgba(0,0,0,.3);pointer-events:none;}
+    .g-wrapper.g-sel .g-chk{display:flex;}
+    .g-fallback{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;}
+    /* Result cards */
+    .result-card{position:relative;background:#ffffff;border-radius:12px;overflow:hidden;cursor:pointer;transition:box-shadow .15s,border-color .15s;border:1px solid #e2e8f0;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+    .result-card:hover{box-shadow:0 4px 18px rgba(0,0,0,.10);border-color:#93c5fd;transform:translateY(-1px);}
+    .result-card.focused{box-shadow:0 0 0 2.5px #2563eb,0 4px 18px rgba(37,99,235,.18);border-color:#2563eb;}
+    .card-top-overlay{position:absolute;top:0;left:0;right:0;padding:7px 8px;display:flex;align-items:center;justify-content:space-between;z-index:6;pointer-events:none;}
+    .card-top-overlay>*{pointer-events:auto;}
+    .card-bot-overlay{position:absolute;left:0;right:0;bottom:0;padding:4px 8px 6px;display:flex;align-items:center;gap:5px;background:linear-gradient(to top,rgba(241,245,249,.9) 0%,transparent 100%);z-index:6;pointer-events:none;font-size:9px;color:#64748b;}
+    .card-play-btn{width:26px;height:26px;border-radius:50%;border:1px solid rgba(0,0,0,.12);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s;background:rgba(255,255,255,.85);color:#374151;}
+    .card-play-btn:hover{background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.15);}
+    .card-play-btn.pause{background:rgba(251,191,36,.9);border-color:rgba(217,119,6,.3);color:#92400e;}
+    .card-play-btn.pause:hover{background:#fbbf24;}
+    /* Upload zone */
+    #drop-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:110px;border:2px dashed #93c5fd;border-radius:12px;background:#f0f9ff;cursor:pointer;text-align:center;padding:10px;position:relative;overflow:hidden;transition:all .2s;}
+    /* Progress bar */
+    #progress-bar-wrap{height:3px;background:#e2e8f0;position:relative;flex-shrink:0;}
+    #progress-bar-fill{height:100%;background:#2563eb;transition:width .3s ease;width:0%;}
+    /* animate spin */
+    @keyframes _spin{to{transform:rotate(360deg);}}
+    .spin{animation:_spin 1s linear infinite;}
+    /* Loading overlay on card */
+    .card-loading{position:absolute;inset:0;background:rgba(248,250,252,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:5;}
+    /* Anim scrubber */
+    .card-scrub{-webkit-appearance:none;appearance:none;width:100%;height:3px;background:#e2e8f0;border-radius:2px;outline:none;cursor:pointer;accent-color:#3b82f6;display:block;margin:0;}
+    /* Card detail modal */
+    #card-modal{display:none;position:fixed;inset:0;z-index:60;background:rgba(15,23,42,.55);align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 12px;backdrop-filter:blur(4px);}
+    .cm-stat-box{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 16px;text-align:center;min-width:72px;}
+    .cm-stat-val{font-size:22px;font-weight:900;color:#1e3a8a;margin:0;line-height:1;}
+    .cm-stat-lbl{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:3px 0 0;}
+  </style>
 </head>
-<body class="bg-slate-100 min-h-screen text-gray-800 flex flex-col">
-  <!-- Mini nav -->
-  <nav class="bg-white border-b border-slate-200 h-12 flex items-center px-4 sm:px-6 gap-4 sm:gap-6 text-sm font-medium shrink-0">
-    <a href="/" class="flex items-center gap-1.5 font-bold text-blue-900">
-      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+<body>
+<div id="app-root">
+
+  <!-- NAV -->
+  <nav style="height:44px;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;z-index:10;">
+    <a href="/" style="display:flex;align-items:center;gap:6px;font-weight:700;color:#1e3a8a;font-size:14px;text-decoration:none;">
+      <svg xmlns="http://www.w3.org/2000/svg" style="width:18px;height:18px;color:#2563eb" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M8 8c1.5 1 3.5 1 5 0M8 16c1.5-1 3.5-1 5 0M12 3v18"/>
-      </svg>
-      CytoGraph
+      </svg>CytoGraph
     </a>
-    <a href="/" class="text-gray-400 hover:text-blue-700 transition">Home</a>
+    <span style="color:#e2e8f0">/</span>
+    <span style="font-size:13px;color:#64748b;font-weight:500;">Classifier</span>
+    <div style="flex:1"></div>
+    <!-- Progress -->
+    <span id="nav-progress" style="font-size:11px;color:#2563eb;font-weight:600;display:none;"></span>
+    <a href="/" style="font-size:12px;color:#64748b;padding:4px 10px;border:1px solid #e2e8f0;border-radius:6px;font-weight:500;text-decoration:none;"
+       onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='transparent'">&larr; Home</a>
   </nav>
-    <div id="page-wrap" class="flex-1 flex flex-col items-center justify-start px-3 sm:px-4 py-5 sm:py-8 transition-all">
-        <!-- ── Upload + Gallery side-by-side ─────────────────────────────── -->
-        <div id="upload-wrap" class="w-full max-w-6xl">
-          <h1 class="text-2xl sm:text-3xl font-bold text-center text-blue-900 mb-4 sm:mb-6">CytoGraph</h1>
+  <!-- Progress bar (under nav) -->
+  <div id="progress-bar-wrap" style="display:none;"><div id="progress-bar-fill"></div></div>
 
-          <div class="flex flex-col lg:flex-row gap-4 sm:gap-6 items-start">
+  <!-- MAIN -->
+  <div id="app-main">
 
-            <!-- LEFT: Upload panel -->
-            <div class="w-full lg:w-72 xl:w-80 shrink-0 flex flex-col gap-3">
-              <form id="upload-form" class="flex flex-col gap-3">
-                <!-- Drop zone -->
-                <label for="image-input" id="drop-zone"
-                    class="flex flex-col items-center justify-center w-full cursor-pointer
-                           rounded-2xl border-2 border-dashed border-blue-300 bg-white
-                           hover:border-blue-500 hover:bg-blue-50 transition-all duration-200
-                           py-8 sm:py-10 px-4 sm:px-6 text-center select-none relative overflow-hidden"
-                    style="min-height:180px">
-                    <img id="img-preview" src="" alt="preview"
-                        class="hidden absolute inset-0 w-full h-full object-contain rounded-2xl bg-white" />
-                    <div id="drop-placeholder" class="flex flex-col items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-12 h-12 text-blue-400 mb-3" fill="none"
-                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4 4 4"/>
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1"/>
-                        </svg>
-                        <span class="text-base font-semibold text-blue-700 mb-1">Drop image here</span>
-                        <span class="text-xs text-gray-400 mb-3">or click to browse — JPG, PNG</span>
-                        <span id="file-name" class="text-xs text-gray-500 italic">No file selected</span>
-                    </div>
-                    <div id="drop-selected" class="hidden absolute bottom-0 left-0 right-0 bg-black/40 text-white text-xs py-1.5 text-center rounded-b-2xl">
-                        <span id="file-name-overlay"></span> &middot; click to change
-                    </div>
-                    <input type="file" id="image-input" accept="image/*" class="hidden" required>
-                </label>
+    <!-- LEFT PANEL -->
+    <div id="left-panel">
+      <div style="padding:8px 12px 6px;border-bottom:1px solid #f1f5f9;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;">
+        <p style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:0;">Input</p>
+        <div id="sel-badge" style="display:none;font-size:10px;font-weight:700;background:#eff6ff;color:#2563eb;padding:2px 8px;border-radius:999px;"></div>
+      </div>
 
-                <button type="submit"
-                    class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800
-                           text-white font-bold py-3 px-6 rounded-xl text-sm transition-all duration-150
-                           flex items-center justify-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25h12A2.25 2.25 0 0020.25 18v-3.75M16.5 3.75h3.75v3.75M13.5 10.5l6.75-6.75"/>
-                    </svg>
-                    Classify &amp; Generate 3D Mesh
-                </button>
-              </form>
-
-              <div id="loading" class="hidden flex flex-col items-center gap-3 text-blue-600 font-semibold py-4">
-                  <svg class="animate-spin w-7 h-7 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                  </svg>
-                  <span class="text-sm">Processing &amp; running GNN model…</span>
-              </div>
-            </div>
-
-            <!-- RIGHT: Inline gallery panel -->
-            <div class="flex-1 bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col" style="min-height:320px">
-              <!-- Gallery header + category tabs -->
-              <div class="px-3 sm:px-4 pt-3 sm:pt-4 pb-2 sm:pb-3 border-b border-slate-100">
-                <p class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2 sm:mb-3">Sample Gallery — click any image to use it</p>
-                <div class="flex flex-wrap gap-1.5" id="gallery-tabs-inline"></div>
-              </div>
-              <!-- Image grid -->
-              <div id="gallery-grid-inline" class="p-3 sm:p-4"></div>
-            </div>
-
+      <!-- Upload zone -->
+      <div style="padding:8px 12px;flex-shrink:0;border-bottom:1px solid #f1f5f9;">
+        <label id="drop-zone" for="image-input">
+          <img id="img-preview" src="" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:10px;"/>
+          <div id="drop-placeholder" style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <svg xmlns="http://www.w3.org/2000/svg" style="width:26px;height:26px;color:#60a5fa" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0L8 8m4-4 4 4M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1"/>
+            </svg>
+            <span style="font-size:12px;font-weight:600;color:#2563eb;">Drop images here</span>
+            <span style="font-size:10px;color:#94a3b8;">Multiple files supported &middot; JPG/PNG</span>
           </div>
-        </div><!-- /upload-wrap -->
+          <div id="drop-info" style="display:none;flex-direction:column;align-items:center;gap:3px;">
+            <div id="drop-thumbs" style="display:flex;gap:4px;flex-wrap:wrap;justify-content:center;max-width:220px;"></div>
+            <span id="drop-count" style="font-size:11px;font-weight:600;color:#2563eb;"></span>
+            <span style="font-size:10px;color:#94a3b8;">click to change</span>
+          </div>
+          <input type="file" id="image-input" accept="image/*" multiple style="display:none;">
+        </label>
 
-        <div id="results" class="hidden w-full">
-            <!-- Top bar: title + new upload button -->
-            <div class="flex items-center justify-between mb-6">
-                <h1 class="text-2xl font-bold text-blue-900">CytoGraph</h1>
-                <button onclick="resetUpload()"
-                    class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-all duration-150">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none"
-                         viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round"
-                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 0L8 8m4-4 4 4"/>
-                    </svg>
-                    New Upload
-                </button>
-            </div>
-            <!-- Prediction + 3D mesh -->
-            <div class="flex flex-col lg:flex-row gap-4 sm:gap-6 mb-6 sm:mb-8" style="align-items:stretch">
-                <div class="bg-slate-100 p-4 sm:p-6 flex flex-col gap-4 w-full lg:w-72 xl:w-80 lg:shrink-0">
+        <button id="classify-btn" disabled onclick="classifyAll()"
+          style="width:100%;margin-top:8px;background:#2563eb;color:#fff;font-weight:700;font-size:12px;padding:8px;border-radius:8px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:background .15s;opacity:.4;"
+          onmouseover="if(!this.disabled)this.style.background='#1d4ed8'" onmouseout="if(!this.disabled)this.style.background='#2563eb'">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:13px;height:13px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25h12A2.25 2.25 0 0020.25 18v-3.75M16.5 3.75h3.75v3.75M13.5 10.5l6.75-6.75"/>
+          </svg>
+          <span id="classify-btn-text">Select images to classify</span>
+        </button>
+      </div>
 
-                    <!-- Predicted class badge -->
-                    <div>
-                        <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-1">Predicted Class</p>
-                        <div id="pred-class-badge"
-                            class="inline-block px-4 py-1 rounded-full text-white text-sm font-bold bg-blue-600 mb-2"></div>
-                        <div id="pred-confidence"
-                            class="text-5xl font-extrabold text-gray-800 leading-none"></div>
-                        <p class="text-xs text-gray-400 mt-1">confidence</p>
-                    </div>
-
-                    <hr class="border-slate-300">
-
-                    <!-- Class probability bars -->
-                    <div>
-                        <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">All Classes</p>
-                        <ul id="pred-probs" class="space-y-3 text-sm"></ul>
-                    </div>
-                </div>
-                <div class="bg-slate-100 p-3 sm:p-4 flex flex-col flex-1">
-                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3 sm:mb-4">
-                        <h2 class="text-base sm:text-xl font-semibold">3D Nucleus Mesh</h2>
-                        <div class="flex gap-1.5 sm:gap-2 text-xs sm:text-sm flex-wrap">
-                            <button id="btn-solid" onclick="setView('solid')"
-                                class="px-3 py-1 rounded font-semibold bg-blue-600 text-white transition">Solid</button>
-                            <button id="btn-nodes" onclick="setView('nodes')"
-                                class="px-3 py-1 rounded font-semibold bg-gray-200 text-gray-700 hover:bg-blue-100 transition">Nodes</button>
-                            <button id="btn-both" onclick="setView('both')"
-                                class="px-3 py-1 rounded font-semibold bg-gray-200 text-gray-700 hover:bg-blue-100 transition">Mesh + Nodes</button>
-                            <span class="border-l border-slate-300 mx-1"></span>
-                            <button onclick="showMeshTable()"
-                                class="px-3 py-1 rounded font-semibold bg-slate-700 text-white hover:bg-slate-800 transition flex items-center gap-1.5">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M3 6h18M3 18h18"/>
-                                </svg>
-                                Table Data
-                            </button>
-                        </div>
-                    </div>
-                    <div id="plot-div" class="w-full"></div>
-                    <p class="text-xs text-gray-400 mt-2 hidden sm:block">Scroll to zoom · Drag to rotate · Hover a node to read its X/Y/Z position and RGB color</p>
-                </div>
-            </div>
-
+      <!-- Gallery header + tabs -->
+      <div style="padding:6px 12px;border-bottom:1px solid #f1f5f9;flex-shrink:0;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <p style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:0;">Sample Gallery</p>
+          <div style="display:flex;gap:6px;">
+            <button onclick="selectAllInTab()" style="font-size:10px;color:#2563eb;background:none;border:none;cursor:pointer;padding:0;font-weight:600;" title="Select all images in current tab">All</button>
+            <button onclick="clearGallerySelection()" style="font-size:10px;color:#94a3b8;background:none;border:none;cursor:pointer;padding:0;" title="Clear selection">Clear</button>
+          </div>
         </div>
+        <p style="font-size:10px;color:#94a3b8;margin:0 0 5px;">&#x2190; Click thumbnails to select &bull; multi-select OK</p>
+        <div id="gallery-tabs" style="display:flex;flex-wrap:wrap;gap:4px;"></div>
+      </div>
+
+      <!-- Gallery grid (scrollable) -->
+      <div style="overflow-y:auto;flex:1;min-height:0;">
+        <div id="gallery-grid" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px;"></div>
+      </div>
+    </div><!-- /left-panel -->
+
+    <!-- CENTER PANEL -->
+    <div id="center-panel">
+
+      <!-- TOOLBAR -->
+      <div id="toolbar">
+        <!-- Global anim controls -->
+        <button id="btn-play-all" class="tb-btn green" onclick="playAll()">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>Play All
+        </button>
+        <button class="tb-btn v-in" onclick="pauseAll()">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>Pause
+        </button>
+        <button class="tb-btn v-in" onclick="resetAll()">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/>
+          </svg>Reset
+        </button>
+        <select id="anim-speed" onchange="setGlobalSpeed()" style="font-size:11px;padding:4px 6px;border:1px solid #e2e8f0;border-radius:6px;background:#f8fafc;color:#475569;font-weight:600;cursor:pointer;outline:none;height:28px;">
+          <option value="90">Slow</option>
+          <option value="45" selected>Normal</option>
+          <option value="16">Fast</option>
+        </select>
+
+        <div class="tb-sep"></div>
+
+        <!-- View toggle for focused card -->
+        <button id="btn-solid"  class="tb-btn v-act" onclick="setFocusedView('solid')">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/>
+          </svg>Solid
+        </button>
+        <button id="btn-nodes" class="tb-btn v-in" onclick="setFocusedView('nodes')">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px" fill="currentColor" viewBox="0 0 20 20">
+            <circle cx="10" cy="10" r="2.5"/><circle cx="3.5" cy="3.5" r="2"/><circle cx="16.5" cy="3.5" r="2"/><circle cx="3.5" cy="16.5" r="2"/><circle cx="16.5" cy="16.5" r="2"/>
+          </svg>Nodes
+        </button>
+        <button id="btn-both"  class="tb-btn v-in" onclick="setFocusedView('both')">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/>
+          </svg>Mesh+Nodes
+        </button>
+
+        <div class="tb-sep"></div>
+
+        <button class="tb-btn slate" onclick="showFocusedTable()">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M3 6h18M3 18h18"/>
+          </svg>Table
+        </button>
+        <button class="tb-btn slate" onclick="exportFocused()">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 4v12m0 0l-4-4m4 4l4-4"/>
+          </svg>Export
+        </button>
+        <button class="tb-btn red" onclick="clearAll()">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:12px;height:12px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
+          </svg>Clear All
+        </button>
+      </div>
+
+      <!-- CARDS GRID -->
+      <div id="canvas-wrap">
+        <div id="empty-state">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:36px 44px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.06);">
+            <div style="width:52px;height:52px;margin:0 auto 14px;background:#eff6ff;border-radius:14px;display:flex;align-items:center;justify-content:center;">
+              <svg xmlns="http://www.w3.org/2000/svg" style="width:26px;height:26px;color:#3b82f6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25A2.25 2.25 0 0113.5 8.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/>
+              </svg>
+            </div>
+            <p style="font-weight:700;font-size:15px;color:#1e3a8a;margin:0 0 6px;">Multi-Cell Analyzer</p>
+            <p style="font-size:12px;color:#94a3b8;max-width:220px;line-height:1.6;margin:0;">Select multiple images from the gallery or upload files, then click <b>Classify</b> to build 3D meshes for each cell</p>
+          </div>
+        </div>
+        <div id="cards-grid"></div>
+      </div>
+
+      <!-- STATUS BAR -->
+      <div id="status-bar">
+        <span id="sb-cards" style="margin-right:16px;">Cards: 0</span>
+        <span id="sb-total-nodes" style="margin-right:16px;">Total Nodes: —</span>
+        <div style="flex:1"></div>
+        <span id="sb-focused" style="color:#2563eb;font-weight:600;font-size:10px;margin-right:16px;"></span>
+        <span style="color:#cbd5e1;">Click card to focus &middot; Drag to rotate</span>
+      </div>
+
+    </div><!-- /center-panel -->
+
+    <!-- RIGHT PANEL -->
+    <div id="right-panel">
+      <div id="rp-empty" style="padding:24px 16px;text-align:center;">
+        <div style="width:40px;height:40px;margin:0 auto 12px;background:#f1f5f9;border-radius:10px;display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px;color:#94a3b8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 14.25v2.25m3-4.5v4.5m3-6.75v6.75m3-9v9M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z"/>
+          </svg>
+        </div>
+        <p style="font-size:12px;color:#94a3b8;line-height:1.6;margin:0;">Click a cell card to see classification details</p>
+      </div>
+
+      <div id="rp-results" style="display:none;flex-direction:column;">
+        <!-- Focused card thumbnail -->
+        <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
+          <p style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:0 0 6px;">Focused Cell</p>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <img id="rp-thumb" src="" alt="" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:2px solid #e2e8f0;flex-shrink:0;"/>
+            <div style="min-width:0;">
+              <div id="rp-filename" style="font-size:11px;font-weight:600;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+              <div id="rp-badge" style="margin-top:3px;display:inline-block;padding:2px 8px;border-radius:999px;color:#fff;font-size:11px;font-weight:700;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prediction -->
+        <div style="padding:12px 14px 10px;border-bottom:1px solid #f1f5f9;">
+          <p style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:0 0 6px;">Confidence</p>
+          <div style="display:flex;align-items:baseline;gap:4px;">
+            <span id="rp-conf" style="font-size:38px;font-weight:900;line-height:1;color:#111827;"></span>
+            <span style="font-size:13px;font-weight:600;color:#9ca3af;">%</span>
+          </div>
+          <div id="rp-uncertainty" style="display:none;margin-top:8px;padding:5px 8px;border-radius:8px;font-size:11px;font-weight:600;"></div>
+        </div>
+
+        <!-- Graph stats -->
+        <div style="padding:10px 14px;border-bottom:1px solid #f1f5f9;">
+          <p style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:0 0 8px;">Graph Stats</p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <div style="background:#f8fafc;border-radius:8px;padding:7px 9px;border:1px solid #f1f5f9;">
+              <p id="rp-nodes" style="font-size:18px;font-weight:800;color:#1e3a8a;margin:0;">—</p>
+              <p style="font-size:9px;color:#94a3b8;margin:1px 0 0;">Nodes</p>
+            </div>
+            <div style="background:#f8fafc;border-radius:8px;padding:7px 9px;border:1px solid #f1f5f9;">
+              <p id="rp-edges" style="font-size:18px;font-weight:800;color:#1e3a8a;margin:0;">—</p>
+              <p style="font-size:9px;color:#94a3b8;margin:1px 0 0;">Edges</p>
+            </div>
+            <div style="background:#f8fafc;border-radius:8px;padding:7px 9px;border:1px solid #f1f5f9;">
+              <p id="rp-faces" style="font-size:18px;font-weight:800;color:#1e3a8a;margin:0;">—</p>
+              <p style="font-size:9px;color:#94a3b8;margin:1px 0 0;">Faces</p>
+            </div>
+            <div style="background:#f8fafc;border-radius:8px;padding:7px 9px;border:1px solid #f1f5f9;">
+              <p id="rp-deg" style="font-size:18px;font-weight:800;color:#1e3a8a;margin:0;">—</p>
+              <p style="font-size:9px;color:#94a3b8;margin:1px 0 0;">Avg Degree</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Prob bars -->
+        <div style="padding:10px 14px 14px;">
+          <p style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:0 0 8px;">All Classes</p>
+          <ul id="rp-probs" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px;"></ul>
+        </div>
+      </div>
+    </div><!-- /right-panel -->
+
+  </div><!-- /#app-main -->
+</div><!-- /#app-root -->
+
+<!-- CARD DETAIL MODAL -->
+<div id="card-modal" onclick="if(event.target===this)closeCardModal()">
+  <div style="background:#fff;border-radius:18px;width:min(860px,98vw);margin:auto;box-shadow:0 32px 80px rgba(0,0,0,.3);overflow:hidden;display:flex;flex-direction:column;">
+
+    <!-- Header: thumbnail + class + confidence + close -->
+    <div style="padding:14px 16px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:12px;flex-shrink:0;">
+      <img id="cm-thumb" src="" alt="" style="width:46px;height:46px;border-radius:10px;object-fit:cover;border:2px solid #e2e8f0;flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span id="cm-badge" style="padding:3px 12px;border-radius:999px;color:#fff;font-size:12px;font-weight:700;"></span>
+          <span id="cm-conf" style="font-size:26px;font-weight:900;color:#111827;line-height:1;"></span>
+          <span style="font-size:12px;color:#9ca3af;font-weight:500;">confidence</span>
+          <span id="cm-quality" style="font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;"></span>
+        </div>
+        <div id="cm-filename" style="font-size:11px;color:#6b7280;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button onclick="saveModalPNG()" title="Save PNG screenshot" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;font-size:12px;font-weight:600;color:#374151;transition:background .12s;" onmouseover="this.style.background='#e0f2fe'" onmouseout="this.style.background='#f8fafc'">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>PNG
+        </button>
+        <button onclick="saveModalPLY()" title="Save 3D mesh with vertex colors (.ply)" style="display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:8px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;font-size:12px;font-weight:600;color:#374151;transition:background .12s;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f8fafc'">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:14px;height:14px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>3D Mesh
+        </button>
+        <button onclick="closeCardModal()" title="Close" style="width:34px;height:34px;border-radius:9px;border:1px solid #e2e8f0;background:#f8fafc;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#64748b;flex-shrink:0;transition:background .12s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
     </div>
 
-    <script>
-        // Show image preview inside drop zone
-        function showPreview(file) {
-            if (!file) return;
-            const url = URL.createObjectURL(file);
-            const preview = document.getElementById("img-preview");
-            preview.src = url;
-            preview.classList.remove("hidden");
-            document.getElementById("drop-placeholder").classList.add("hidden");
-            document.getElementById("drop-selected").classList.remove("hidden");
-            document.getElementById("file-name-overlay").textContent = file.name;
-            document.getElementById("file-name").textContent = file.name;
-            const dzone = document.getElementById("drop-zone");
-            dzone.classList.add("border-blue-500");
-            dzone.classList.remove("py-14", "px-8");
-            dzone.style.minHeight = "240px";
-        }
-
-        function resetPreview() {
-            const preview = document.getElementById("img-preview");
-            preview.src = "";
-            preview.classList.add("hidden");
-            document.getElementById("drop-placeholder").classList.remove("hidden");
-            document.getElementById("drop-selected").classList.add("hidden");
-            document.getElementById("file-name").textContent = "No file selected";
-            const dzone = document.getElementById("drop-zone");
-            dzone.classList.remove("border-blue-500", "bg-blue-50");
-            dzone.classList.add("py-14", "px-8");
-            dzone.style.minHeight = "";
-        }
-
-        // Show selected filename in drop zone
-        document.getElementById("image-input").addEventListener("change", (e) => {
-            if (e.target.files[0]) showPreview(e.target.files[0]);
-        });
-
-        // Drag-and-drop support
-        const dz = document.getElementById("drop-zone");
-        dz.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("border-blue-500","bg-blue-50"); });
-        dz.addEventListener("dragleave", () => { dz.classList.remove("border-blue-500","bg-blue-50"); });
-        dz.addEventListener("drop", (e) => {
-            e.preventDefault();
-            const files = e.dataTransfer.files;
-            if (files.length) {
-                document.getElementById("image-input").files = files;
-                showPreview(files[0]);
-            }
-        });
-
-        document.getElementById("upload-form").addEventListener("submit", async (e) => {
-            e.preventDefault();
-
-            const fileInput = document.getElementById("image-input");
-            if (fileInput.files.length === 0) return;
-
-            const formData = new FormData();
-            formData.append("file", fileInput.files[0]);
-
-            document.getElementById("loading").classList.remove("hidden");
-            document.getElementById("results").classList.add("hidden");
-
-            try {
-                const response = await fetch("/api/predict", {
-                    method: "POST",
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    const err = await response.text();
-                    throw new Error(err);
-                }
-
-                const data = await response.json();
-
-                // Predicted class badge + confidence
-                const pct = (data.confidence * 100);
-                document.getElementById("pred-class-badge").textContent = data.predicted_class;
-                document.getElementById("pred-confidence").textContent = pct.toFixed(1) + "%";
-
-                // Color badge by confidence level
-                const badge = document.getElementById("pred-class-badge");
-                const conf = document.getElementById("pred-confidence");
-                if (pct >= 80) {
-                    badge.className = badge.className.replace(/bg-\S+/, "bg-emerald-600");
-                    conf.className = conf.className.replace(/text-gray-800/, "text-emerald-700");
-                } else if (pct >= 50) {
-                    badge.className = badge.className.replace(/bg-\S+/, "bg-blue-600");
-                    conf.className = conf.className.replace(/text-gray-800/, "text-blue-700");
-                } else {
-                    badge.className = badge.className.replace(/bg-\S+/, "bg-amber-500");
-                    conf.className = conf.className.replace(/text-gray-800/, "text-amber-700");
-                }
-
-                // Class probability bars — sorted highest first
-                const probsList = document.getElementById("pred-probs");
-                probsList.innerHTML = "";
-                const sorted = Object.entries(data.percentages).sort((a, b) => parseFloat(b[1]) - parseFloat(a[1]));
-                const topClass = sorted[0][0];
-                sorted.forEach(([cls, rawPct]) => {
-                    const val = parseFloat(rawPct);
-                    const isTop = cls === topClass;
-                    const barColor = isTop ? "bg-blue-500" : "bg-slate-300";
-                    const labelColor = isTop ? "font-bold text-gray-900" : "text-gray-500";
-                    probsList.innerHTML +=
-                        "<li>" +
-                          "<div class='flex justify-between mb-0.5'>" +
-                            "<span class='text-xs " + labelColor + "'>" + cls + "</span>" +
-                            "<span class='text-xs font-semibold " + (isTop ? "text-blue-600" : "text-gray-400") + "'>" + val.toFixed(2) + "%</span>" +
-                          "</div>" +
-                          "<div class='w-full bg-slate-200 rounded-full h-2'>" +
-                            "<div class='" + barColor + " h-2 rounded-full transition-all duration-500' style='width:" + Math.min(val, 100) + "%'></div>" +
-                          "</div>" +
-                        "</li>";
-                });
-
-                _lastTableData = data.mesh_data.table_data || [];
-                render3DMesh(data.mesh_data);
-                document.getElementById("results").classList.remove("hidden");
-                // Hide upload wrap, switch to top-aligned full layout
-                document.getElementById("upload-wrap").classList.add("hidden");
-                const wrap = document.getElementById("page-wrap");
-                wrap.classList.remove("items-center", "justify-center");
-                wrap.classList.add("items-start", "justify-start");
-            } catch (error) {
-                alert("Error: " + error.message);
-            } finally {
-                document.getElementById("loading").classList.add("hidden");
-            }
-        });
-
-        function resetUpload() {
-            // Hide results, show upload wrap, restore centered layout
-            document.getElementById("results").classList.add("hidden");
-            document.getElementById("upload-wrap").classList.remove("hidden");
-            const wrap = document.getElementById("page-wrap");
-            wrap.classList.add("items-center", "justify-center");
-            wrap.classList.remove("items-start", "justify-start");
-            // Reset form
-            document.getElementById("upload-form").reset();
-            resetPreview();
-            _lastMesh = null;
-            _lastTableData = null;
-            _currentView = 'solid';
-        }
-
-        let _lastMesh = null;
-        let _lastTableData = null;
-        let _currentView = 'solid';
-
-        function setView(mode) {
-            _currentView = mode;
-            ['solid','nodes','both'].forEach(m => {
-                const btn = document.getElementById('btn-' + m);
-                btn.className = m === mode
-                    ? 'px-3 py-1 rounded font-semibold bg-blue-600 text-white transition'
-                    : 'px-3 py-1 rounded font-semibold bg-gray-200 text-gray-700 hover:bg-blue-100 transition';
-            });
-            if (_lastMesh) render3DMesh(_lastMesh);
-        }
-
-        function render3DMesh(mesh) {
-            _lastMesh = mesh;
-            const { x, y, z, r, g, b, faces_i, faces_j, faces_k, face_colors } = mesh;
-            const mode = _currentView;
-
-            // Build per-node hex color strings and hover text
-            const nodeColors = x.map((_, i) => {
-                const ri = Math.round(r[i] * 255);
-                const gi = Math.round(g[i] * 255);
-                const bi = Math.round(b[i] * 255);
-                return 'rgb(' + ri + ',' + gi + ',' + bi + ')';
-            });
-            const hoverText = x.map((_, i) => {
-                const ri = Math.round(r[i] * 255);
-                const gi = Math.round(g[i] * 255);
-                const bi = Math.round(b[i] * 255);
-                return 'X: ' + x[i].toFixed(1) + '<br>Y: ' + y[i].toFixed(1) + '<br>Z: ' + z[i].toFixed(1) +
-                       '<br>RGB: (' + ri + ', ' + gi + ', ' + bi + ')';
-            });
-
-            const solidTrace = {
-                type: "mesh3d",
-                x, y, z,
-                i: faces_i, j: faces_j, k: faces_k,
-                facecolor: face_colors,
-                flatshading: true,
-                opacity: mode === 'both' ? 0.55 : 1.0,
-                hoverinfo: "none",
-                name: "Solid Mesh",
-                lighting: { ambient: 0.85, diffuse: 0.9, specular: 0.1, roughness: 0.8 },
-                lightposition: { x: 100, y: 200, z: 150 }
-            };
-
-            const nodeTrace = {
-                type: "scatter3d",
-                x, y, z,
-                mode: "markers",
-                name: "Pixel Nodes",
-                marker: {
-                    size: mode === 'nodes' ? 4 : 3,
-                    color: nodeColors,
-                    opacity: 1.0,
-                    line: { width: 0 }
-                },
-                text: hoverText,
-                hovertemplate: "%{text}<extra></extra>"
-            };
-
-            let traces = [];
-            if (mode === 'solid') traces = [solidTrace];
-            else if (mode === 'nodes') traces = [nodeTrace];
-            else traces = [solidTrace, nodeTrace];
-
-            // Compute axis range for equal aspect ratio
-            const allVals = [x, y, z];
-            const mins = allVals.map(a => Math.min(...a));
-            const maxs = allVals.map(a => Math.max(...a));
-            const mid  = mins.map((m, i) => (m + maxs[i]) / 2);
-            const half = Math.max(...maxs.map((m, i) => m - mins[i])) / 2 * 1.05;
-
-            const axisStyle = {
-                showgrid: true,
-                gridcolor: "#d1d5db",
-                gridwidth: 1,
-                zeroline: true,
-                zerolinecolor: "#6b7280",
-                zerolinewidth: 1.5,
-                showline: true,
-                linecolor: "#374151",
-                linewidth: 2,
-                showticklabels: true,
-                tickfont: { size: 10, color: "#374151" },
-                titlefont: { size: 13, color: "#111827", family: "monospace" },
-                showspikes: true,
-                spikecolor: "#ef4444",
-                spikethickness: 1.5
-            };
-
-            const layout = {
-                margin: { l: 10, r: 10, b: 10, t: 10 },
-                paper_bgcolor: "#f1f5f9",
-                scene: {
-                    bgcolor: "#f1f5f9",
-                    xaxis: { ...axisStyle, title: "X (px)", range: [mid[0]-half, mid[0]+half] },
-                    yaxis: { ...axisStyle, title: "Y (px)", range: [mid[1]-half, mid[1]+half] },
-                    zaxis: { ...axisStyle, title: "Z (px)", range: [mid[2]-half, mid[2]+half] },
-                    aspectmode: "cube",
-                    camera: { eye: { x: 1.6, y: 1.6, z: 1.1 } }
-                },
-                showlegend: mode === 'both',
-                legend: { x: 0.01, y: 0.99, bgcolor: "rgba(241,245,249,0.9)", borderwidth: 0 }
-            };
-
-            const config = {
-                scrollZoom: true,
-                displayModeBar: true,
-                modeBarButtonsToAdd: [],
-                toImageButtonOptions: { format: "png", filename: "nucleus_3d" }
-            };
-
-            Plotly.newPlot("plot-div", traces, layout, config);
-        }
-        // ── Mesh Table Modal ─────────────────────────────────────────────────
-        function showMeshTable() {
-            if (!_lastTableData || _lastTableData.length === 0) return;
-            const rows = _lastTableData;
-            const cols = Object.keys(rows[0]);
-
-            // RGB-triplet start columns → show color swatch on that cell
-            const rgbSwatchCols = {
-                'Node1_R': ['Node1_R','Node1_G','Node1_B'],
-                'Node2_R': ['Node2_R','Node2_G','Node2_B'],
-                'Line_Avg_R': ['Line_Avg_R','Line_Avg_G','Line_Avg_B']
-            };
-
-            // Build header
-            document.getElementById('mesh-table-head').innerHTML =
-                cols.map(c => `<th class="px-3 py-2 whitespace-nowrap border-b-2 border-slate-300 text-left text-gray-700">${c}</th>`).join('');
-
-            // Build body
-            document.getElementById('mesh-table-body').innerHTML = rows.map((row, ri) => {
-                const bg = ri % 2 === 0 ? 'bg-white' : 'bg-slate-50';
-                const cells = cols.map(c => {
-                    const val = row[c];
-                    if (rgbSwatchCols[c]) {
-                        const [rc, gc, bc] = rgbSwatchCols[c];
-                        const sw = `<span class="inline-block w-3 h-3 rounded-sm mr-1 align-middle border border-slate-200" style="background:rgb(${row[rc]},${row[gc]},${row[bc]})"></span>`;
-                        return `<td class="px-3 py-1.5 whitespace-nowrap">${sw}${val}</td>`;
-                    }
-                    return `<td class="px-3 py-1.5 whitespace-nowrap">${val}</td>`;
-                }).join('');
-                return `<tr class="${bg}">${cells}</tr>`;
-            }).join('');
-
-            document.getElementById('table-row-count').textContent = rows.length + ' edges';
-            document.getElementById('table-modal').classList.remove('hidden');
-        }
-
-        function closeMeshTable() {
-            document.getElementById('table-modal').classList.add('hidden');
-        }
-
-        function downloadTableCSV() {
-            if (!_lastTableData || _lastTableData.length === 0) return;
-            const rows = _lastTableData;
-            const cols = Object.keys(rows[0]);
-            const csv = [cols.join(',')]
-                .concat(rows.map(row => cols.map(c => JSON.stringify(row[c])).join(',')))
-                .join('\n');
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'mesh_edge_data.csv';
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-
-        // Close modal on backdrop click
-        document.getElementById('table-modal').addEventListener('click', function(e) {
-            if (e.target === this) closeMeshTable();
-        });
-    </script>
-
-    <!-- ── Mesh Table Modal ──────────────────────────────────────────────── -->
-    <div id="table-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-        <div class="bg-white rounded-2xl flex flex-col" style="width:94vw;max-height:90vh">
-            <!-- Modal header -->
-            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-                <div class="flex items-center gap-3">
-                    <h3 class="text-lg font-bold text-gray-900">Mesh Edge Data Table</h3>
-                    <span id="table-row-count" class="text-xs bg-blue-100 text-blue-700 font-semibold px-2.5 py-0.5 rounded-full"></span>
-                </div>
-                <div class="flex items-center gap-3">
-                    <button onclick="downloadTableCSV()"
-                        class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1.5 px-4 rounded-lg text-sm transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 4v12m0 0l-4-4m4 4l4-4"/>
-                        </svg>
-                        Download CSV
-                    </button>
-                    <button onclick="closeMeshTable()"
-                        class="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-slate-100 transition">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            <!-- Scrollable table -->
-            <div class="overflow-auto flex-1 px-2 py-2">
-                <table class="text-xs border-collapse min-w-max w-full">
-                    <thead class="sticky top-0 z-10 bg-slate-100">
-                        <tr id="mesh-table-head"></tr>
-                    </thead>
-                    <tbody id="mesh-table-body"></tbody>
-                </table>
-            </div>
-            <p class="text-xs text-gray-400 px-6 py-2.5 border-t border-slate-100">
-                Each row is one GNN graph edge. Node1 &amp; Node2 are 3D-projected nucleus pixels. Edge_Length is Euclidean 3D distance. Color swatches show actual pixel color.
-            </p>
+    <!-- 3-D model area -->
+    <div style="position:relative;background:#f8fafc;flex-shrink:0;">
+      <div id="modal-plot" style="height:480px;width:100%;"></div>
+      <!-- Controls overlay at bottom of plot -->
+      <div style="position:absolute;bottom:0;left:0;right:0;padding:8px 12px 10px;background:linear-gradient(to top,rgba(0,0,0,.65),transparent);display:flex;align-items:center;gap:8px;">
+        <button id="cm-play-btn" class="card-play-btn play" onclick="toggleModalAnim()" title="Play / Pause">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:10px;height:10px" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <input type="range" id="cm-scrub" min="0" max="100" value="0" oninput="scrubModal(this.value)"
+          style="-webkit-appearance:none;appearance:none;flex:1;height:3px;background:rgba(255,255,255,.2);border-radius:2px;outline:none;cursor:pointer;accent-color:#3b82f6;">
+        <div style="display:flex;gap:3px;flex-shrink:0;">
+          <button id="cm-solid" class="tb-btn v-act" onclick="setModalView('solid')" style="padding:3px 9px;font-size:11px;height:auto;">Solid</button>
+          <button id="cm-nodes" class="tb-btn v-in"  onclick="setModalView('nodes')" style="padding:3px 9px;font-size:11px;height:auto;">Nodes</button>
+          <button id="cm-both"  class="tb-btn v-in"  onclick="setModalView('both')"  style="padding:3px 9px;font-size:11px;height:auto;">Both</button>
         </div>
+      </div>
     </div>
 
-    <!-- ─── GALLERY SCRIPT (inline panel) ───────────────────────────────── -->
-    <script>
-      const GALLERY = {
-        basophil:     ['BA_100102.jpg','BA_101381.jpg','BA_101611.jpg','BA_102039.jpg','BA_102750.jpg','BA_10387.jpg','BA_10622.jpg','BA_107595.jpg','BA_107876.jpg','BA_111710.jpg'],
-        eosinophil:   ['EO_100213.jpg','EO_1007.jpg','EO_100884.jpg','EO_10150.jpg','EO_101772.jpg','EO_101852.jpg','EO_103649.jpg','EO_103746.jpg','EO_103851.jpg','EO_103957.jpg'],
-        erythroblast: ['ERB_101031.jpg','ERB_101277.jpg','ERB_10157.jpg','ERB_101704.jpg','ERB_101733.jpg','ERB_102372.jpg','ERB_102733.jpg','ERB_103778.jpg','ERB_104326.jpg','ERB_104607.jpg'],
-        ig:           ['IG_101958.jpg','IG_102433.jpg','IG_110946.jpg','IG_111589.jpg','IG_115116.jpg','IG_119514.jpg','IG_132866.jpg','IG_146565.jpg','IG_150106.jpg','IG_157249.jpg'],
-        lymphocyte:   ['LY_100275.jpg','LY_102859.jpg','LY_10361.jpg','LY_104129.jpg','LY_104155.jpg','LY_105283.jpg','LY_106354.jpg','LY_107981.jpg','LY_109025.jpg','LY_109093.jpg'],
-        monocyte:     ['MO_100695.jpg','MO_101258.jpg','MO_102400.jpg','MO_103089.jpg','MO_103756.jpg','MO_104290.jpg','MO_104431.jpg','MO_104441.jpg','MO_104451.jpg','MO_104742.jpg'],
-        neutrophil:   ['BNE_100878.jpg','BNE_101007.jpg','BNE_101082.jpg','BNE_101234.jpg','BNE_102129.jpg','BNE_102203.jpg','BNE_102779.jpg','BNE_102912.jpg','BNE_103440.jpg','BNE_104344.jpg'],
-        platelet:     ['PLATELET_100161.jpg','PLATELET_100529.jpg','PLATELET_100790.jpg','PLATELET_101132.jpg','PLATELET_10233.jpg','PLATELET_102535.jpg','PLATELET_103295.jpg','PLATELET_104489.jpg','PLATELET_104945.jpg','PLATELET_105490.jpg'],
-      };
+    <!-- Details row: stats + probability bars -->
+    <div style="padding:16px;display:flex;gap:14px;flex-wrap:wrap;border-top:1px solid #e2e8f0;">
+      <!-- Stats boxes -->
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <div class="cm-stat-box"><p id="cm-nodes" class="cm-stat-val">—</p><p class="cm-stat-lbl">Nodes</p></div>
+        <div class="cm-stat-box"><p id="cm-edges" class="cm-stat-val">—</p><p class="cm-stat-lbl">Edges</p></div>
+        <div class="cm-stat-box"><p id="cm-faces" class="cm-stat-val">—</p><p class="cm-stat-lbl">Faces</p></div>
+        <div class="cm-stat-box"><p id="cm-deg"   class="cm-stat-val">—</p><p class="cm-stat-lbl">Avg Deg</p></div>
+      </div>
+      <!-- Probability bars -->
+      <div style="flex:1;min-width:200px;">
+        <p style="font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8;margin:0 0 8px;">All Classes</p>
+        <ul id="cm-probs" style="list-style:none;padding:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;"></ul>
+      </div>
+    </div>
 
-      const CAT_COLORS = {
-        basophil:'bg-purple-100 text-purple-700 border-purple-300',
-        eosinophil:'bg-pink-100 text-pink-700 border-pink-300',
-        erythroblast:'bg-red-100 text-red-700 border-red-300',
-        ig:'bg-orange-100 text-orange-700 border-orange-300',
-        lymphocyte:'bg-blue-100 text-blue-700 border-blue-300',
-        monocyte:'bg-teal-100 text-teal-700 border-teal-300',
-        neutrophil:'bg-indigo-100 text-indigo-700 border-indigo-300',
-        platelet:'bg-yellow-100 text-yellow-700 border-yellow-300',
-      };
-      const CAT_ACTIVE = {
-        basophil:'bg-purple-600 text-white border-purple-600',
-        eosinophil:'bg-pink-600 text-white border-pink-600',
-        erythroblast:'bg-red-600 text-white border-red-600',
-        ig:'bg-orange-500 text-white border-orange-500',
-        lymphocyte:'bg-blue-600 text-white border-blue-600',
-        monocyte:'bg-teal-600 text-white border-teal-600',
-        neutrophil:'bg-indigo-600 text-white border-indigo-600',
-        platelet:'bg-yellow-500 text-white border-yellow-500',
-      };
+  </div>
+</div>
 
-      let activeGalleryTab = 'basophil';
+<!-- TABLE MODAL -->
+<div id="table-modal" style="display:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;display:flex;flex-direction:column;width:94vw;max-height:88vh;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #e2e8f0;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <h3 style="font-size:14px;font-weight:700;color:#111827;margin:0;">Mesh Edge Data</h3>
+        <span id="table-row-count" style="font-size:10px;background:#eff6ff;color:#2563eb;font-weight:700;padding:2px 8px;border-radius:999px;"></span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="downloadTableCSV()" style="display:flex;align-items:center;gap:5px;background:#059669;color:#fff;font-size:12px;font-weight:700;padding:5px 12px;border-radius:7px;border:none;cursor:pointer;">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:13px;height:13px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 4v12m0 0l-4-4m4 4l4-4"/>
+          </svg>CSV
+        </button>
+        <button onclick="closeMeshTable()" style="padding:6px;border-radius:6px;border:none;background:#f1f5f9;cursor:pointer;color:#64748b;display:flex;align-items:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" style="width:16px;height:16px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div style="overflow:auto;flex:1;padding:6px;">
+      <table style="font-size:11px;border-collapse:collapse;min-width:max-content;width:100%;">
+        <thead style="position:sticky;top:0;background:#f8fafc;z-index:5;"><tr id="mesh-table-head"></tr></thead>
+        <tbody id="mesh-table-body"></tbody>
+      </table>
+    </div>
+    <p style="font-size:10px;color:#94a3b8;padding:6px 20px 10px;border-top:1px solid #f1f5f9;margin:0;">Each row = one GNN graph edge.</p>
+  </div>
+</div>
 
-      function buildInlineGallery() {
-        // Build tabs
-        const tabContainer = document.getElementById('gallery-tabs-inline');
-        tabContainer.innerHTML = '';
-        Object.keys(GALLERY).forEach(cat => {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          const label = cat === 'ig' ? 'IG' : cat.charAt(0).toUpperCase() + cat.slice(1);
-          btn.textContent = label;
-          btn.id = 'itab-' + cat;
-          btn.className = 'px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-150 ' +
-            (cat === activeGalleryTab ? CAT_ACTIVE[cat] : CAT_COLORS[cat]);
-          btn.onclick = () => switchInlineTab(cat);
-          tabContainer.appendChild(btn);
-        });
-        renderInlineGrid(activeGalleryTab);
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const CARDS      = new Map();   // id -> cardState
+let _nextId      = 0;
+let _focusedId   = null;
+let _animSpeed   = 45;
+let _curView     = 'solid';
+let _tableData   = [];          // for focused card
+let _totalToProc = 0;
+let _procDone    = 0;
+const MAX_WEBGL  = 6;
+const _plotQueue = [];
+
+// gallery multi-select
+const _selGallery = new Map();  // "cat/fname" -> {cat,fname,previewUrl}
+let _uploadedFiles = [];        // File[]
+
+// ============================================================
+// CLASS COLORS
+// ============================================================
+const CLS_COLOR = {
+  Basophil:'#a855f7', Eosinophil:'#ec4899', Erythroblast:'#ef4444',
+  IG:'#f97316', Lymphocyte:'#3b82f6', Monocyte:'#14b8a6',
+  Neutrophil:'#6366f1', Platelet:'#eab308'
+};
+function clsColor(c){ return CLS_COLOR[c]||'#6b7280'; }
+
+// ============================================================
+// UPLOAD / DROP ZONE
+// ============================================================
+document.getElementById('image-input').addEventListener('change', e => {
+  handleFiles(Array.from(e.target.files));
+});
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover',  e=>{ e.preventDefault(); dz.style.borderColor='#3b82f6'; dz.style.background='#eff6ff'; });
+dz.addEventListener('dragleave', ()=>{ dz.style.borderColor='#93c5fd'; dz.style.background='#f0f9ff'; });
+dz.addEventListener('drop', e=>{
+  e.preventDefault(); dz.style.borderColor='#93c5fd'; dz.style.background='#f0f9ff';
+  handleFiles(Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')));
+});
+
+function handleFiles(files){
+  if(!files.length) return;
+  _uploadedFiles = files;
+  // Show info
+  document.getElementById('drop-placeholder').style.display = 'none';
+  document.getElementById('drop-info').style.display = 'flex';
+  document.getElementById('drop-count').textContent = files.length + ' file' + (files.length>1?'s':'') + ' ready';
+  // Thumbnails (max 5)
+  const thumbsEl = document.getElementById('drop-thumbs');
+  thumbsEl.innerHTML = '';
+  files.slice(0,5).forEach(f=>{
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(f);
+    img.style.cssText = 'width:32px;height:32px;border-radius:4px;object-fit:cover;border:1px solid #e2e8f0;';
+    thumbsEl.appendChild(img);
+  });
+  if(files.length>5){
+    const more = document.createElement('span');
+    more.textContent = '+' + (files.length-5);
+    more.style.cssText = 'font-size:10px;color:#94a3b8;align-self:center;';
+    thumbsEl.appendChild(more);
+  }
+  updateClassifyBtn();
+}
+
+// ============================================================
+// UPDATE CLASSIFY BUTTON
+// ============================================================
+function updateClassifyBtn(){
+  const n = _selGallery.size + _uploadedFiles.length;
+  const btn = document.getElementById('classify-btn');
+  const txt = document.getElementById('classify-btn-text');
+  const badge = document.getElementById('sel-badge');
+  btn.disabled = n === 0;
+  btn.style.opacity = n > 0 ? '1' : '0.4';
+  txt.textContent = n > 0 ? 'Classify ' + n + ' Image' + (n>1?'s':'') : 'Select images to classify';
+  badge.textContent = n + ' selected';
+  badge.style.display = n > 0 ? 'inline-block' : 'none';
+}
+
+// ============================================================
+// CLASSIFY ALL
+// ============================================================
+async function classifyAll(){
+  const sources = [];
+  _uploadedFiles.forEach(f => sources.push({type:'file', file:f, name:f.name, preview:URL.createObjectURL(f)}));
+  for(const [, item] of _selGallery) sources.push({type:'gallery', cat:item.cat, fname:item.fname, name:item.fname, preview:`/static/samples/${item.cat}/${item.fname}`});
+  if(!sources.length) return;
+
+  _totalToProc = sources.length;
+  _procDone = 0;
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('progress-bar-wrap').style.display = 'block';
+  document.getElementById('nav-progress').style.display = 'inline';
+  updateProgress(0, sources.length);
+
+  const promises = sources.map(src => classifySource(src));
+  await Promise.allSettled(promises);
+
+  document.getElementById('progress-bar-wrap').style.display = 'none';
+  document.getElementById('nav-progress').style.display = 'none';
+  updateStatusBar();
+}
+
+async function classifySource(src){
+  try {
+    let file;
+    if(src.type === 'file'){
+      file = src.file;
+    } else {
+      const r = await fetch(src.preview);
+      const blob = await r.blob();
+      file = new File([blob], src.name, {type: blob.type||'image/jpeg'});
+    }
+    const fd = new FormData(); fd.append('file', file);
+    const res = await fetch('/api/predict', {method:'POST', body:fd});
+    if(!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    createCard(data, src);
+  } catch(err){
+    console.error('Failed to classify ' + src.name + ':', err);
+  } finally {
+    _procDone++;
+    updateProgress(_procDone, _totalToProc);
+  }
+}
+
+function updateProgress(done, total){
+  const pct = total > 0 ? Math.round((done/total)*100) : 0;
+  document.getElementById('progress-bar-fill').style.width = pct + '%';
+  document.getElementById('nav-progress').textContent = 'Processing ' + done + '/' + total + '...';
+}
+
+// ============================================================
+// CREATE CARD
+// ============================================================
+function createCard(data, src){
+  const id = _nextId++;
+  const mesh = data.mesh_data;
+  const nc = mesh.x.map((_,i)=>'rgb('+Math.round(mesh.r[i]*255)+','+Math.round(mesh.g[i]*255)+','+Math.round(mesh.b[i]*255)+')');
+  const pct = data.confidence * 100;
+  const tblData = mesh.table_data || [];
+
+  const nodeHoverText = mesh.x.map((_,i)=>{
+    const rv=Math.round(mesh.r[i]*255),gv=Math.round(mesh.g[i]*255),bv=Math.round(mesh.b[i]*255);
+    return '<b>Node '+i+'</b><br>RGB(255): '+rv+', '+gv+', '+bv+'<br>X: '+mesh.x[i].toFixed(4)+'<br>Y: '+mesh.y[i].toFixed(4)+'<br>Z: '+mesh.z[i].toFixed(4);
+  });
+
+  const state = {
+    id, data, src, mesh, nodeColors:nc, nodeHoverText,
+    animFrames:[], animIdx:0, animTimer:null, isPlaying:false,
+    plotLayout:null, plotCfg:null, plotInited:false,
+    tableData:tblData, filename:src.name, previewUrl:src.preview,
+    curView:'solid'
+  };
+  buildAnimFrames(state);
+  computeLayout(state);
+  CARDS.set(id, state);
+
+  // Build DOM
+  const el = document.createElement('div');
+  el.className = 'result-card';
+  el.id = 'card-' + id;
+  el.onclick = ()=>focusCard(id);
+
+  const color = clsColor(data.predicted_class);
+  el.innerHTML =
+    '<div style="position:relative;height:290px;">' +
+      '<div id="plot-'+id+'" style="position:absolute;inset:0;width:100%;height:100%;"></div>' +
+      '<div id="cload-'+id+'" style="position:absolute;inset:0;background:rgba(248,250,252,.95);display:flex;align-items:center;justify-content:center;z-index:5;">' +
+        '<svg class="spin" style="width:24px;height:24px;color:#3b82f6;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">' +
+          '<circle style="opacity:.2" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>' +
+          '<path style="opacity:.8" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>' +
+        '</svg>' +
+      '</div>' +
+      '<div class="card-top-overlay">' +
+        '<div style="display:flex;align-items:center;gap:5px;">' +
+          '<span style="background:'+color+';color:#fff;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;">'+data.predicted_class+'</span>' +
+          '<span style="font-size:12px;font-weight:800;color:#1e293b;background:rgba(255,255,255,.88);padding:1px 6px;border-radius:6px;border:1px solid rgba(0,0,0,.07);">'+pct.toFixed(1)+'%</span>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:3px;">' +
+          '<button id="cpb-'+id+'" class="card-play-btn play" onclick="toggleCardById('+id+',event)" title="Play/Pause">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" style="width:10px;height:10px" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>' +
+          '</button>' +
+          '<button class="card-play-btn" onclick="saveCardPNG('+id+',event)" title="Save PNG">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" style="width:11px;height:11px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>' +
+          '</button>' +
+          '<button class="card-play-btn" onclick="saveCardPLY('+id+',event)" title="Save 3D mesh (.ply)">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" style="width:11px;height:11px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>' +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card-bot-overlay">' +
+        '<span>N:'+mesh.x.length+'</span>' +
+        '<span style="opacity:.35">|</span>' +
+        '<span>E:'+tblData.length+'</span>' +
+        '<span style="opacity:.35">|</span>' +
+        '<span>F:'+mesh.faces_i.length+'</span>' +
+        '<span style="margin-left:auto;font-weight:700;color:'+(pct>=80?'#059669':pct>=50?'#2563eb':'#d97706')+'">'+(pct>=80?'✓ High':pct>=50?'∼ Med':'⚠ Low')+'</span>' +
+      '</div>' +
+    '</div>' +
+    '<input type="range" class="card-scrub" id="cscrub-'+id+'" min="0" max="100" value="0" oninput="scrubCard('+id+',this.value)" onclick="event.stopPropagation()">';
+
+  document.getElementById('cards-grid').appendChild(el);
+
+  // Init plot after render
+  setTimeout(()=>{
+    document.getElementById('cload-'+id).style.display = 'none';
+    initCardPlot(state);
+    playCardAnim(state);
+    if(_focusedId === null) focusCard(id);
+    updateStatusBar();
+  }, 80);
+}
+
+// ============================================================
+// ANIMATION SYSTEM (per-card)
+// ============================================================
+function buildAnimFrames(state){
+  const N = state.mesh.x.length, F = state.mesh.faces_i.length;
+  state.animFrames = [];
+  for(let f=0; f<=30; f++) state.animFrames.push({nodeEnd:Math.round(f/30*N), faceEnd:0, phase:'nodes'});
+  for(let f=1; f<=30; f++) state.animFrames.push({nodeEnd:N, faceEnd:Math.round(f/30*F), phase:'faces'});
+}
+
+function computeLayout(state){
+  const {x,y,z} = state.mesh;
+  const mins=[Math.min(...x),Math.min(...y),Math.min(...z)];
+  const maxs=[Math.max(...x),Math.max(...y),Math.max(...z)];
+  const mid=mins.map((m,i)=>(m+maxs[i])/2);
+  const half=Math.max(...maxs.map((m,i)=>m-mins[i]))/2*1.12;
+  const ax={showgrid:true,gridcolor:'#e2e8f0',zeroline:true,zerolinecolor:'#cbd5e1',showticklabels:false,showspikes:false};
+  state.plotLayout={
+    margin:{l:0,r:0,b:0,t:0},paper_bgcolor:'#ffffff',
+    scene:{bgcolor:'#ffffff',
+      xaxis:{...ax,range:[mid[0]-half,mid[0]+half]},
+      yaxis:{...ax,range:[mid[1]-half,mid[1]+half]},
+      zaxis:{...ax,range:[mid[2]-half,mid[2]+half]},
+      aspectmode:'cube',
+      camera:{eye:{x:1.25,y:1.25,z:0.85},center:{x:0,y:0,z:0},up:{x:0,y:0,z:1}}},
+    showlegend:false, uirevision:'c'+state.id
+  };
+  state.plotCfg={scrollZoom:true,displayModeBar:false,responsive:true};
+}
+
+function ensureWebGLBudget(id){
+  const idx=_plotQueue.indexOf(id);
+  if(idx!==-1) _plotQueue.splice(idx,1);
+  _plotQueue.push(id);
+  let safety=0;
+  while(_plotQueue.length>MAX_WEBGL && safety++<20){
+    const oldId=_plotQueue.shift();
+    if(oldId===_focusedId){_plotQueue.unshift(oldId);break;}
+    const s=CARDS.get(oldId);
+    if(!s||!s.plotInited) continue;
+    stopCardAnim(s);
+    Plotly.purge('plot-'+oldId);
+    s.plotInited=false;
+    const pe=document.getElementById('plot-'+oldId);
+    if(pe) pe.innerHTML='<img src="'+s.previewUrl+'" style="width:100%;height:100%;object-fit:cover;opacity:.4;display:block;">';
+  }
+}
+
+function initCardPlot(state){
+  ensureWebGLBudget(state.id);
+  const pe=document.getElementById('plot-'+state.id);
+  if(pe) pe.innerHTML='';
+  Plotly.newPlot('plot-'+state.id, [], state.plotLayout, state.plotCfg);
+  state.plotInited=true;
+}
+
+function renderCardFrame(state, frame){
+  if(!state.plotInited) return;
+  const {x,y,z,faces_i,faces_j,faces_k,face_colors}=state.mesh;
+  const {nodeEnd,faceEnd}=frame;
+  const traces=[];
+  if(nodeEnd>0) traces.push({type:'scatter3d',x:x.slice(0,nodeEnd),y:y.slice(0,nodeEnd),z:z.slice(0,nodeEnd),mode:'markers',marker:{size:faceEnd>0?2:3,color:state.nodeColors.slice(0,nodeEnd),opacity:faceEnd>0?0.35:1},text:state.nodeHoverText.slice(0,nodeEnd),hovertemplate:'%{text}<extra></extra>',name:'N'});
+  if(faceEnd>0){const ratio=faceEnd/faces_i.length;traces.push({type:'mesh3d',x,y,z,i:faces_i.slice(0,faceEnd),j:faces_j.slice(0,faceEnd),k:faces_k.slice(0,faceEnd),facecolor:face_colors.slice(0,faceEnd),flatshading:true,opacity:0.25+ratio*0.75,text:state.nodeHoverText,hovertemplate:'%{text}<extra></extra>',name:'M'});}
+  Plotly.react('plot-'+state.id, traces, state.plotLayout, state.plotCfg);
+  const pct=Math.round((state.animIdx/Math.max(state.animFrames.length-1,1))*100);
+  const scrub=document.getElementById('cscrub-'+state.id);
+  if(scrub) scrub.value=pct;
+}
+
+function renderCardStatic(state, view){
+  if(!state.plotInited) return;
+  view = view||state.curView;
+  const {x,y,z,r,g,b,faces_i,faces_j,faces_k,face_colors}=state.mesh;
+  const solidT={type:'mesh3d',x,y,z,i:faces_i,j:faces_j,k:faces_k,facecolor:face_colors,flatshading:true,opacity:view==='both'?0.55:1,text:state.nodeHoverText,hovertemplate:'%{text}<extra></extra>',name:'M',lighting:{ambient:.85,diffuse:.9,specular:.1,roughness:.8}};
+  const nodeT={type:'scatter3d',x,y,z,mode:'markers',name:'N',marker:{size:view==='nodes'?3.5:2.5,color:state.nodeColors,opacity:1,line:{width:0}},text:state.nodeHoverText,hovertemplate:'%{text}<extra></extra>'};
+  const traces=view==='solid'?[solidT]:view==='nodes'?[nodeT]:[solidT,nodeT];
+  const lay={...state.plotLayout,showlegend:view==='both'};
+  Plotly.react('plot-'+state.id,traces,lay,state.plotCfg);
+  const scrub=document.getElementById('cscrub-'+state.id);
+  if(scrub) scrub.value=100;
+}
+
+function playCardAnim(state){
+  if(!state||state.isPlaying||!state.plotInited) return;
+  if(state.animIdx>=state.animFrames.length) state.animIdx=0;
+  state.isPlaying=true;
+  updateCardPlayBtn(state, true);
+  state.animTimer=setInterval(()=>{
+    if(state.animIdx>=state.animFrames.length){
+      stopCardAnim(state);
+      renderCardStatic(state);
+      return;
+    }
+    renderCardFrame(state, state.animFrames[state.animIdx++]);
+  }, _animSpeed);
+}
+
+function stopCardAnim(state){
+  state.isPlaying=false;
+  clearInterval(state.animTimer); state.animTimer=null;
+  updateCardPlayBtn(state, false);
+}
+
+function updateCardPlayBtn(state, playing){
+  const btn=document.getElementById('cpb-'+state.id);
+  if(!btn) return;
+  btn.className='card-play-btn '+(playing?'pause':'play');
+  btn.innerHTML=playing
+    ? '<svg xmlns="http://www.w3.org/2000/svg" style="width:10px;height:10px" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'
+    : '<svg xmlns="http://www.w3.org/2000/svg" style="width:10px;height:10px" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+}
+
+function toggleCardById(id, event){
+  event.stopPropagation();
+  const state=CARDS.get(id); if(!state) return;
+  state.isPlaying ? stopCardAnim(state) : playCardAnim(state);
+}
+
+function scrubCard(id, pct){
+  event.stopPropagation && event.stopPropagation();
+  const state=CARDS.get(id); if(!state||!state.animFrames.length) return;
+  stopCardAnim(state);
+  state.animIdx=Math.round((pct/100)*(state.animFrames.length-1));
+  renderCardFrame(state, state.animFrames[Math.min(state.animIdx,state.animFrames.length-1)]);
+}
+
+// ============================================================
+// GLOBAL CONTROLS
+// ============================================================
+function playAll(){
+  CARDS.forEach(s=>{ if(!s.isPlaying){ if(s.animIdx>=s.animFrames.length) s.animIdx=0; playCardAnim(s); } });
+}
+function pauseAll(){ CARDS.forEach(s=>stopCardAnim(s)); }
+function resetAll(){
+  CARDS.forEach(s=>{
+    stopCardAnim(s);
+    s.animIdx=0;
+    if(s.plotInited){ initCardPlot(s); }
+    const scrub=document.getElementById('cscrub-'+s.id);
+    if(scrub) scrub.value=0;
+  });
+}
+function setGlobalSpeed(){
+  _animSpeed=parseInt(document.getElementById('anim-speed').value);
+  CARDS.forEach(s=>{ if(s.isPlaying){ stopCardAnim(s); playCardAnim(s); } });
+}
+function clearAll(){
+  if(_modalId!==null) closeCardModal();
+  CARDS.forEach(s=>{ stopCardAnim(s); if(s.plotInited) Plotly.purge('plot-'+s.id); });
+  CARDS.clear(); _nextId=0; _focusedId=null; _plotQueue.length=0;
+  document.getElementById('cards-grid').innerHTML='';
+  document.getElementById('empty-state').style.display='flex';
+  document.getElementById('rp-empty').style.display='block';
+  document.getElementById('rp-results').style.display='none';
+  document.getElementById('sb-focused').textContent='';
+  updateStatusBar();
+}
+
+function setFocusedView(mode){
+  _curView=mode;
+  ['solid','nodes','both'].forEach(m=>document.getElementById('btn-'+m).className=m===mode?'tb-btn v-act':'tb-btn v-in');
+  if(_focusedId===null) return;
+  const state=CARDS.get(_focusedId);
+  if(state&&!state.isPlaying){ state.curView=mode; renderCardStatic(state,mode); }
+}
+
+function showFocusedTable(){
+  if(_focusedId===null) return;
+  const state=CARDS.get(_focusedId);
+  if(state) showMeshTable(state.tableData);
+}
+
+function exportFocused(){
+  if(_focusedId===null) return;
+  Plotly.downloadImage('plot-'+_focusedId,{format:'png',filename:'cytograph_'+_focusedId});
+}
+
+// ============================================================
+// FOCUS CARD
+// ============================================================
+function focusCard(id){
+  if(_focusedId!==null){
+    const prev=document.getElementById('card-'+_focusedId);
+    if(prev) prev.classList.remove('focused');
+  }
+  _focusedId=id;
+  const el=document.getElementById('card-'+id);
+  if(el){ el.classList.add('focused'); el.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  const state=CARDS.get(id);
+  if(state){
+    updateRightPanel(state);
+    if(!state.plotInited){
+      initCardPlot(state);
+      state.animIdx=state.animFrames.length;
+      renderCardStatic(state,state.curView);
+    } else {
+      requestAnimationFrame(()=>{ const pe=document.getElementById('plot-'+id); if(pe) Plotly.Plots.resize(pe); });
+    }
+  }
+  document.getElementById('sb-focused').textContent=state?'● Focused: '+state.filename:'';
+  openCardModal(id);
+}
+
+function updateRightPanel(state){
+  const data=state.data, pct=data.confidence*100;
+  document.getElementById('rp-thumb').src=state.previewUrl;
+  document.getElementById('rp-filename').textContent=state.filename;
+  const badge=document.getElementById('rp-badge');
+  badge.textContent=data.predicted_class;
+  badge.style.background=clsColor(data.predicted_class);
+  document.getElementById('rp-conf').textContent=pct.toFixed(1);
+  document.getElementById('rp-conf').style.color=pct>=80?'#065f46':pct>=50?'#1e3a8a':'#92400e';
+  const ub=document.getElementById('rp-uncertainty');
+  if(pct<60){ub.style.display='block';ub.style.background='#fef3c7';ub.style.color='#92400e';ub.textContent='⚠ Low confidence';}
+  else ub.style.display='none';
+  const nd=state.mesh.x.length,fc=state.mesh.faces_i.length,ed=state.tableData.length;
+  document.getElementById('rp-nodes').textContent=nd.toLocaleString();
+  document.getElementById('rp-edges').textContent=ed.toLocaleString();
+  document.getElementById('rp-faces').textContent=fc.toLocaleString();
+  document.getElementById('rp-deg').textContent=ed>0?((ed*2)/nd).toFixed(1):'—';
+  _tableData=state.tableData;
+  // Prob bars
+  const ul=document.getElementById('rp-probs'); ul.innerHTML='';
+  const sorted=Object.entries(data.percentages).sort((a,b)=>parseFloat(b[1])-parseFloat(a[1]));
+  sorted.forEach(([cls,raw])=>{
+    const v=parseFloat(raw),top=cls===sorted[0][0];
+    const li=document.createElement('li');
+    li.innerHTML='<div style="display:flex;justify-content:space-between;margin-bottom:2px;">'
+      +'<span style="font-size:11px;font-weight:'+(top?700:500)+';color:'+(top?'#111827':'#6b7280')+';">'+cls+'</span>'
+      +'<span style="font-size:11px;font-weight:700;color:'+(top?clsColor(cls):'#9ca3af')+';">'+v.toFixed(1)+'%</span>'
+      +'</div><div style="height:5px;background:#f1f5f9;border-radius:3px;overflow:hidden;">'
+      +'<div style="height:100%;background:'+(top?clsColor(cls):'#cbd5e1')+';border-radius:3px;width:'+Math.min(v,100)+'%;transition:width .6s;"></div></div>';
+    ul.appendChild(li);
+  });
+  document.getElementById('rp-empty').style.display='none';
+  document.getElementById('rp-results').style.display='flex';
+}
+
+function updateStatusBar(){
+  const n=CARDS.size;
+  document.getElementById('sb-cards').textContent='Cards: '+n;
+  let totalNodes=0; CARDS.forEach(s=>totalNodes+=s.mesh.x.length);
+  document.getElementById('sb-total-nodes').textContent='Total Nodes: '+(n>0?totalNodes.toLocaleString():'—');
+}
+
+// ============================================================
+// TABLE MODAL
+// ============================================================
+function showMeshTable(rows){
+  if(!rows||!rows.length) return;
+  const cols=Object.keys(rows[0]);
+  const swCols={'Node1_R':['Node1_R','Node1_G','Node1_B'],'Node2_R':['Node2_R','Node2_G','Node2_B'],'Line_Avg_R':['Line_Avg_R','Line_Avg_G','Line_Avg_B']};
+  document.getElementById('mesh-table-head').innerHTML=cols.map(c=>'<th style="padding:6px 10px;white-space:nowrap;border-bottom:2px solid #e2e8f0;text-align:left;color:#374151;font-size:11px;">'+c+'</th>').join('');
+  document.getElementById('mesh-table-body').innerHTML=rows.map((row,ri)=>{
+    const bg=ri%2===0?'#fff':'#f8fafc';
+    const cells=cols.map(c=>{
+      if(swCols[c]){const[rc,gc,bc]=swCols[c];const sw='<span style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle;background:rgb('+row[rc]+','+row[gc]+','+row[bc]+');border:1px solid #e2e8f0;"></span>';return'<td style="padding:4px 10px;white-space:nowrap;font-size:11px;">'+sw+row[c]+'</td>';}
+      return'<td style="padding:4px 10px;white-space:nowrap;font-size:11px;">'+row[c]+'</td>';
+    }).join('');
+    return'<tr style="background:'+bg+';">'+cells+'</tr>';
+  }).join('');
+  document.getElementById('table-row-count').textContent=rows.length+' edges';
+  document.getElementById('table-modal').style.display='flex';
+}
+function closeMeshTable(){ document.getElementById('table-modal').style.display='none'; }
+function downloadTableCSV(){
+  if(!_tableData.length) return;
+  const cols=Object.keys(_tableData[0]);
+  const csv=[cols.join(','),..._tableData.map(row=>cols.map(c=>JSON.stringify(row[c])).join(','))].join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='mesh_edge_data.csv';a.click();
+}
+document.getElementById('table-modal').addEventListener('click',function(e){if(e.target===this)closeMeshTable();});
+
+
+// ============================================================
+// GALLERY
+// ============================================================
+const GALLERY={
+  basophil:    ['BA_100102.jpg','BA_101381.jpg','BA_101611.jpg','BA_102039.jpg','BA_102750.jpg','BA_10387.jpg','BA_10622.jpg','BA_107595.jpg','BA_107876.jpg','BA_111710.jpg'],
+  eosinophil:  ['EO_100213.jpg','EO_1007.jpg','EO_100884.jpg','EO_10150.jpg','EO_101772.jpg','EO_101852.jpg','EO_103649.jpg','EO_103746.jpg','EO_103851.jpg','EO_103957.jpg'],
+  erythroblast:['ERB_101031.jpg','ERB_101277.jpg','ERB_10157.jpg','ERB_101704.jpg','ERB_101733.jpg','ERB_102372.jpg','ERB_102733.jpg','ERB_103778.jpg','ERB_104326.jpg','ERB_104607.jpg'],
+  ig:          ['IG_101958.jpg','IG_102433.jpg','IG_110946.jpg','IG_111589.jpg','IG_115116.jpg','IG_119514.jpg','IG_132866.jpg','IG_146565.jpg','IG_150106.jpg','IG_157249.jpg'],
+  lymphocyte:  ['LY_100275.jpg','LY_102859.jpg','LY_10361.jpg','LY_104129.jpg','LY_104155.jpg','LY_105283.jpg','LY_106354.jpg','LY_107981.jpg','LY_109025.jpg','LY_109093.jpg'],
+  monocyte:    ['MO_100695.jpg','MO_101258.jpg','MO_102400.jpg','MO_103089.jpg','MO_103756.jpg','MO_104290.jpg','MO_104431.jpg','MO_104441.jpg','MO_104451.jpg','MO_104742.jpg'],
+  neutrophil:  ['BNE_100878.jpg','BNE_101007.jpg','BNE_101082.jpg','BNE_101234.jpg','BNE_102129.jpg','BNE_102203.jpg','BNE_102779.jpg','BNE_102912.jpg','BNE_103440.jpg','BNE_104344.jpg'],
+  platelet:    ['PLATELET_100161.jpg','PLATELET_100529.jpg','PLATELET_100790.jpg','PLATELET_101132.jpg','PLATELET_10233.jpg','PLATELET_102535.jpg','PLATELET_103295.jpg','PLATELET_104489.jpg','PLATELET_104945.jpg','PLATELET_105490.jpg'],
+};
+const CAT_CLR={basophil:'#a855f7',eosinophil:'#ec4899',erythroblast:'#ef4444',ig:'#f97316',lymphocyte:'#3b82f6',monocyte:'#14b8a6',neutrophil:'#6366f1',platelet:'#eab308'};
+let activeTab='basophil';
+
+function buildGallery(){
+  const tabs=document.getElementById('gallery-tabs'); tabs.innerHTML='';
+  Object.keys(GALLERY).forEach(cat=>{
+    const btn=document.createElement('button');
+    btn.type='button'; btn.id='gtab-'+cat;
+    btn.textContent=cat==='ig'?'IG':cat.charAt(0).toUpperCase()+cat.slice(1);
+    btn.style.cssText='padding:3px 8px;border-radius:999px;font-size:10px;font-weight:700;border:1.5px solid;cursor:pointer;transition:all .15s;';
+    btn.onclick=()=>switchTab(cat);
+    tabs.appendChild(btn);
+  });
+  renderTab(activeTab);
+}
+
+function updateTabs(){
+  Object.keys(GALLERY).forEach(cat=>{
+    const btn=document.getElementById('gtab-'+cat); if(!btn) return;
+    btn.style.background=cat===activeTab?CAT_CLR[cat]:'#fff';
+    btn.style.color=cat===activeTab?'#fff':CAT_CLR[cat];
+    btn.style.borderColor=cat===activeTab?CAT_CLR[cat]:CAT_CLR[cat]+'80';
+  });
+}
+
+function switchTab(cat){ activeTab=cat; updateTabs(); renderTab(cat); }
+
+function renderTab(cat){
+  updateTabs();
+  const grid=document.getElementById('gallery-grid'); grid.innerHTML='';
+  GALLERY[cat].forEach(fname=>{
+    const key=cat+'/'+fname;
+    const isSel=_selGallery.has(key);
+    const wid='gw-'+cat+'-'+fname.replace(/[^a-zA-Z0-9]/g,'-');
+
+    const wrapper=document.createElement('div');
+    wrapper.className='g-wrapper'+(isSel?' g-sel':'');
+    wrapper.id=wid;
+    wrapper.onclick=()=>toggleGalleryItem(wrapper,cat,fname,key);
+    wrapper.title=fname+' (click to select)';
+
+    // Image
+    const img=document.createElement('img');
+    img.className='g-tile';
+    img.src='/static/samples/'+cat+'/'+fname;
+    img.loading='lazy';
+    img.onerror=function(){
+      this.style.display='none';
+      const fb=document.createElement('div');
+      fb.className='g-fallback';
+      fb.style.background=CAT_CLR[cat]+'22';
+      fb.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" style="width:24px;height:24px;color:'+CAT_CLR[cat]+';opacity:.7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>'+
+        '<span style="font-size:8px;font-weight:600;color:'+CAT_CLR[cat]+';text-align:center;padding:0 4px;line-height:1.2;">'+fname.replace('.jpg','').substring(0,10)+'</span>';
+      wrapper.insertBefore(fb,this);
+    };
+
+    // Hover overlay
+    const overlay=document.createElement('div');
+    overlay.className='g-overlay';
+    overlay.innerHTML='<span class="g-overlay-lbl">'+(isSel?'\u2713 Selected':'+ Select')+'</span>';
+    overlay.id='gov-'+wid;
+
+    // Checkmark badge
+    const chk=document.createElement('div');
+    chk.className='g-chk';
+    chk.id='chk-'+wid;
+    chk.textContent='\u2713';
+
+    wrapper.appendChild(img);
+    wrapper.appendChild(overlay);
+    wrapper.appendChild(chk);
+    grid.appendChild(wrapper);
+  });
+}
+
+function toggleGalleryItem(wrapperEl, cat, fname, key){
+  const wid=wrapperEl.id;
+  if(_selGallery.has(key)){
+    _selGallery.delete(key);
+    wrapperEl.classList.remove('g-sel');
+    const ov=document.getElementById('gov-'+wid);
+    if(ov){const lbl=ov.querySelector('.g-overlay-lbl');if(lbl)lbl.textContent='+ Select';}
+  } else {
+    _selGallery.set(key,{cat,fname,previewUrl:'/static/samples/'+cat+'/'+fname});
+    wrapperEl.classList.add('g-sel');
+    const ov=document.getElementById('gov-'+wid);
+    if(ov){const lbl=ov.querySelector('.g-overlay-lbl');if(lbl)lbl.textContent='\u2713 Selected';}
+  }
+  updateClassifyBtn();
+}
+
+function selectAllInTab(){
+  GALLERY[activeTab].forEach(fname=>{
+    const key=activeTab+'/'+fname;
+    const wid='gw-'+activeTab+'-'+fname.replace(/[^a-zA-Z0-9]/g,'-');
+    if(!_selGallery.has(key)){
+      _selGallery.set(key,{cat:activeTab,fname,previewUrl:'/static/samples/'+activeTab+'/'+fname});
+      const w=document.getElementById(wid);
+      if(w){
+        w.classList.add('g-sel');
+        const ov=document.getElementById('gov-'+wid);
+        if(ov){const lbl=ov.querySelector('.g-overlay-lbl');if(lbl)lbl.textContent='\u2713 Selected';}
       }
+    }
+  });
+  updateClassifyBtn();
+}
 
-      function switchInlineTab(cat) {
-        const oldBtn = document.getElementById('itab-' + activeGalleryTab);
-        if (oldBtn) oldBtn.className = oldBtn.className.replace(CAT_ACTIVE[activeGalleryTab], CAT_COLORS[activeGalleryTab]);
-        activeGalleryTab = cat;
-        const newBtn = document.getElementById('itab-' + cat);
-        if (newBtn) newBtn.className = newBtn.className.replace(CAT_COLORS[cat], CAT_ACTIVE[cat]);
-        renderInlineGrid(cat);
-      }
+function clearGallerySelection(){
+  _selGallery.clear();
+  document.querySelectorAll('.g-wrapper.g-sel').forEach(el=>{
+    el.classList.remove('g-sel');
+    const ov=el.querySelector('.g-overlay-lbl');
+    if(ov) ov.textContent='+ Select';
+  });
+  updateClassifyBtn();
+}
 
-      function renderInlineGrid(cat) {
-        const grid = document.getElementById('gallery-grid-inline');
-        grid.innerHTML = '';
-        GALLERY[cat].forEach(fname => {
-          const url = `/static/samples/${cat}/${fname}`;
-          const wrapper = document.createElement('div');
-          wrapper.className = 'group relative cursor-pointer rounded-xl overflow-hidden border-2 border-transparent hover:border-blue-500 transition-all duration-150 bg-slate-50 shrink-0';
-          wrapper.className += ' gallery-tile';
-        wrapper.style.cssText = '';
-          wrapper.title = fname;
-          wrapper.onclick = () => selectGalleryImage(cat, fname, url);
+// ============================================================
+// CARD DETAIL MODAL
+// ============================================================
+let _modalId = null;
+const _ms = {isPlaying:false, animIdx:0, animTimer:null, curView:'solid', plotInited:false};
 
-          const img = document.createElement('img');
-          img.src = url;
-          img.alt = cat;
-          img.className = 'w-full h-full object-cover transition-transform duration-200 group-hover:scale-110';
-          img.loading = 'lazy';
+function openCardModal(id){
+  const state=CARDS.get(id); if(!state) return;
+  _closeModalAnim();
+  _modalId=id;
 
-          const overlay = document.createElement('div');
-          overlay.className = 'absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/25 flex items-center justify-center transition-all duration-150';
-          overlay.innerHTML = `<svg class="w-7 h-7 text-white opacity-0 group-hover:opacity-100 drop-shadow transition-all duration-150" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+  // Header
+  document.getElementById('cm-thumb').src=state.previewUrl;
+  document.getElementById('cm-filename').textContent=state.filename;
+  const pct=state.data.confidence*100;
+  const badge=document.getElementById('cm-badge');
+  badge.textContent=state.data.predicted_class;
+  badge.style.background=clsColor(state.data.predicted_class);
+  document.getElementById('cm-conf').textContent=pct.toFixed(1)+'%';
+  const qEl=document.getElementById('cm-quality');
+  if(pct>=80){qEl.textContent='\u2713 High';qEl.style.cssText='font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;background:#dcfce7;color:#065f46;';}
+  else if(pct>=50){qEl.textContent='\u223c Med';qEl.style.cssText='font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;background:#dbeafe;color:#1e3a8a;';}
+  else{qEl.textContent='\u26a0 Low';qEl.style.cssText='font-size:11px;font-weight:700;padding:2px 10px;border-radius:999px;background:#fef3c7;color:#92400e;';}
 
-          wrapper.appendChild(img);
-          wrapper.appendChild(overlay);
-          grid.appendChild(wrapper);
-        });
-      }
+  // Stats
+  const nd=state.mesh.x.length,fc=state.mesh.faces_i.length,ed=state.tableData.length;
+  document.getElementById('cm-nodes').textContent=nd.toLocaleString();
+  document.getElementById('cm-edges').textContent=ed.toLocaleString();
+  document.getElementById('cm-faces').textContent=fc.toLocaleString();
+  document.getElementById('cm-deg').textContent=ed>0?((ed*2)/nd).toFixed(1):'\u2014';
 
-      async function selectGalleryImage(cat, fname, url) {
-        try {
-          const resp = await fetch(url);
-          const blob = await resp.blob();
-          const file = new File([blob], fname, { type: blob.type || 'image/jpeg' });
-          const dt = new DataTransfer();
-          dt.items.add(file);
-          document.getElementById('image-input').files = dt.files;
-          showPreview(file);
-        } catch (err) {
-          alert('Could not load image: ' + err.message);
-        }
-      }
+  // Prob bars (2-column grid)
+  const ul=document.getElementById('cm-probs'); ul.innerHTML='';
+  const sorted=Object.entries(state.data.percentages).sort((a,b)=>parseFloat(b[1])-parseFloat(a[1]));
+  sorted.forEach(([cls,raw])=>{
+    const v=parseFloat(raw),top=cls===sorted[0][0];
+    const li=document.createElement('li');
+    li.innerHTML='<div style="display:flex;justify-content:space-between;margin-bottom:2px;">'
+      +'<span style="font-size:11px;font-weight:'+(top?700:500)+';color:'+(top?'#111827':'#6b7280')+';">'+cls+'</span>'
+      +'<span style="font-size:11px;font-weight:700;color:'+(top?clsColor(cls):'#9ca3af')+';">'+v.toFixed(1)+'%</span>'
+      +'</div><div style="height:4px;background:#f1f5f9;border-radius:2px;overflow:hidden;">'
+      +'<div style="height:100%;background:'+(top?clsColor(cls):'#e2e8f0')+';border-radius:2px;width:'+Math.min(v,100)+'%;transition:width .6s;"></div></div>';
+    ul.appendChild(li);
+  });
 
-      // Init gallery on page load
-      document.addEventListener('DOMContentLoaded', buildInlineGallery);
-    </script>
+  // Reset view buttons & scrub
+  _ms.curView='solid';
+  ['solid','nodes','both'].forEach(m=>{ const b=document.getElementById('cm-'+m); if(b) b.className=m==='solid'?'tb-btn v-act':'tb-btn v-in'; });
+  document.getElementById('cm-scrub').value=0;
+  _updateModalPlayBtn(false);
 
+  // Show modal
+  document.getElementById('card-modal').style.display='flex';
+  document.body.style.overflow='hidden';
+
+  // Init Plotly in modal
+  _ms.animIdx=0; _ms.plotInited=false;
+  setTimeout(()=>{
+    Plotly.newPlot('modal-plot',[],Object.assign({},state.plotLayout,{uirevision:'modal-'+id}),state.plotCfg);
+    _ms.plotInited=true;
+    _playModalAnim(state);
+  },60);
+}
+
+function closeCardModal(){
+  _closeModalAnim();
+  document.getElementById('card-modal').style.display='none';
+  document.body.style.overflow='';
+  if(_ms.plotInited){ Plotly.purge('modal-plot'); _ms.plotInited=false; }
+  _modalId=null;
+}
+
+function _closeModalAnim(){
+  _ms.isPlaying=false;
+  clearInterval(_ms.animTimer); _ms.animTimer=null;
+}
+
+function _playModalAnim(state){
+  if(_ms.isPlaying) return;
+  if(_ms.animIdx>=state.animFrames.length) _ms.animIdx=0;
+  _ms.isPlaying=true;
+  _updateModalPlayBtn(true);
+  _ms.animTimer=setInterval(()=>{
+    if(!_ms.plotInited){_closeModalAnim();return;}
+    if(_ms.animIdx>=state.animFrames.length){_closeModalAnim();_renderModalStatic(state);return;}
+    _renderModalFrame(state,state.animFrames[_ms.animIdx++]);
+  },_animSpeed);
+}
+
+function toggleModalAnim(){
+  const state=CARDS.get(_modalId); if(!state) return;
+  _ms.isPlaying?_closeModalAnim():_playModalAnim(state);
+}
+
+function scrubModal(pct){
+  const state=CARDS.get(_modalId); if(!state) return;
+  _closeModalAnim();
+  _ms.animIdx=Math.round((pct/100)*(state.animFrames.length-1));
+  _renderModalFrame(state,state.animFrames[Math.min(_ms.animIdx,state.animFrames.length-1)]);
+}
+
+function setModalView(mode){
+  _ms.curView=mode;
+  ['solid','nodes','both'].forEach(m=>{ const b=document.getElementById('cm-'+m); if(b) b.className=m===mode?'tb-btn v-act':'tb-btn v-in'; });
+  const state=CARDS.get(_modalId); if(!state||!_ms.plotInited) return;
+  if(!_ms.isPlaying) _renderModalStatic(state,mode);
+}
+
+function _renderModalFrame(state,frame){
+  if(!_ms.plotInited) return;
+  const {x,y,z,faces_i,faces_j,faces_k,face_colors}=state.mesh;
+  const {nodeEnd,faceEnd}=frame;
+  const traces=[];
+  if(nodeEnd>0) traces.push({type:'scatter3d',x:x.slice(0,nodeEnd),y:y.slice(0,nodeEnd),z:z.slice(0,nodeEnd),mode:'markers',marker:{size:faceEnd>0?3:5,color:state.nodeColors.slice(0,nodeEnd),opacity:faceEnd>0?0.35:1},text:state.nodeHoverText.slice(0,nodeEnd),hovertemplate:'%{text}<extra></extra>',name:'N'});
+  if(faceEnd>0){const ratio=faceEnd/faces_i.length;traces.push({type:'mesh3d',x,y,z,i:faces_i.slice(0,faceEnd),j:faces_j.slice(0,faceEnd),k:faces_k.slice(0,faceEnd),facecolor:face_colors.slice(0,faceEnd),flatshading:true,opacity:0.25+ratio*0.75,text:state.nodeHoverText,hovertemplate:'%{text}<extra></extra>',name:'M'});}
+  Plotly.react('modal-plot',traces,Object.assign({},state.plotLayout,{uirevision:'modal-'+state.id}),state.plotCfg);
+  const sc=document.getElementById('cm-scrub');
+  if(sc) sc.value=Math.round((_ms.animIdx/Math.max(state.animFrames.length-1,1))*100);
+}
+
+function _renderModalStatic(state,view){
+  if(!_ms.plotInited) return;
+  view=view||_ms.curView;
+  const {x,y,z,faces_i,faces_j,faces_k,face_colors}=state.mesh;
+  const solidT={type:'mesh3d',x,y,z,i:faces_i,j:faces_j,k:faces_k,facecolor:face_colors,flatshading:true,opacity:view==='both'?0.55:1,text:state.nodeHoverText,hovertemplate:'%{text}<extra></extra>',name:'M',lighting:{ambient:.85,diffuse:.9,specular:.1,roughness:.8}};
+  const nodeT={type:'scatter3d',x,y,z,mode:'markers',name:'N',marker:{size:view==='nodes'?6:4,color:state.nodeColors,opacity:1,line:{width:0}},text:state.nodeHoverText,hovertemplate:'%{text}<extra></extra>'};
+  const traces=view==='solid'?[solidT]:view==='nodes'?[nodeT]:[solidT,nodeT];
+  Plotly.react('modal-plot',traces,Object.assign({},state.plotLayout,{showlegend:view==='both',uirevision:'modal-s-'+state.id}),state.plotCfg);
+  const sc=document.getElementById('cm-scrub'); if(sc) sc.value=100;
+}
+
+function _updateModalPlayBtn(playing){
+  const btn=document.getElementById('cm-play-btn'); if(!btn) return;
+  btn.className='card-play-btn '+(playing?'pause':'play');
+  btn.innerHTML=playing
+    ?'<svg xmlns="http://www.w3.org/2000/svg" style="width:10px;height:10px" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>'
+    :'<svg xmlns="http://www.w3.org/2000/svg" style="width:10px;height:10px" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+}
+
+// ============================================================
+// SAVE / EXPORT
+// ============================================================
+function saveCardPNG(id, event){
+  event && event.stopPropagation();
+  const state=CARDS.get(id); if(!state||!state.plotInited) return;
+  Plotly.downloadImage('plot-'+id,{format:'png',filename:'cytograph_'+state.filename.replace(/\.[^.]+$/,'')+'_3d',width:900,height:700});
+}
+
+function saveCardPLY(id, event){
+  event && event.stopPropagation();
+  const state=CARDS.get(id); if(!state) return;
+  _downloadPLY(state);
+}
+
+function saveModalPNG(){
+  if(!_modalId||!_ms.plotInited) return;
+  const state=CARDS.get(_modalId); if(!state) return;
+  Plotly.downloadImage('modal-plot',{format:'png',filename:'cytograph_'+state.filename.replace(/\.[^.]+$/,'')+'_3d',width:1400,height:900});
+}
+
+function saveModalPLY(){
+  if(!_modalId) return;
+  _downloadPLY(CARDS.get(_modalId));
+}
+
+function _downloadPLY(state){
+  if(!state) return;
+  const {x,y,z,r,g,b,faces_i,faces_j,faces_k}=state.mesh;
+  const NV=x.length, NF=faces_i.length;
+  const lines=[
+    'ply','format ascii 1.0',
+    'comment CytoGraph 3D Mesh',
+    'comment Cell: '+state.filename,
+    'comment Class: '+state.data.predicted_class+' ('+( state.data.confidence*100).toFixed(1)+'%)',
+    'element vertex '+NV,
+    'property float x','property float y','property float z',
+    'property uchar red','property uchar green','property uchar blue',
+    'element face '+NF,
+    'property list uchar int vertex_indices',
+    'end_header'
+  ];
+  for(let i=0;i<NV;i++){
+    lines.push(x[i].toFixed(6)+' '+y[i].toFixed(6)+' '+z[i].toFixed(6)+' '+
+      Math.round(r[i]*255)+' '+Math.round(g[i]*255)+' '+Math.round(b[i]*255));
+  }
+  for(let i=0;i<NF;i++) lines.push('3 '+faces_i[i]+' '+faces_j[i]+' '+faces_k[i]);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/plain'}));
+  a.download='cytograph_'+state.filename.replace(/\.[^.]+$/,'')+'.ply';
+  a.click();
+}
+
+// Escape key closes modal
+document.addEventListener('keydown',function(e){ if(e.key==='Escape'&&_modalId!==null) closeCardModal(); });
+
+buildGallery();
+</script>
 </body>
 </html>
