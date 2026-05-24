@@ -1,179 +1,90 @@
-# CytoGraph — Blood Cell 3D Classifier
+# CytoGraph: 2D Blood Cell to 3D Mesh Generation & GNN Encoder-Decoder
 
-A FastAPI web application that classifies blood cell microscopy images using a **Graph Attention Network (GATv2)**. Each image is segmented, projected onto a 3D cubic mesh, encoded as a PyTorch Geometric graph, and classified into one of 8 cell types — all rendered interactively in the browser.
+**CytoGraph** is a cutting-edge computer vision and graph-based machine learning pipeline that classifies microscopic blood cell images into 8 distinct cell types. Moving beyond the limitations of traditional 2D Convolutional Neural Networks (CNNs), CytoGraph pioneers a novel morpho-spatial approach. It dynamically translates the 2D footprint of a blood cell's nucleus into a **3D Cubic Mesh Graph** and classifies it using a custom **Multi-Task Graph Attention Network (GATv2)**.
 
----
+This repository contains both the exploratory Jupyter Notebooks used for mathematical modeling and architecture design, and a fully deployable FastAPI web application for real-time inference.
+<img width="700" height="551" alt="nucleus_3d3" src="https://github.com/user-attachments/assets/279e014c-9690-4da8-913e-2e7c3ab16e7c" />
 
-## Requirements
-
-- **Python 3.10 or 3.11** (Python 3.12+ is not supported by PyTorch Geometric 2.7)
-- **pip**
-- A virtual environment (recommended)
 
 ---
 
-## Quick Start
-
-### 1. Clone / open the project
-
-```
-cd "C:\Users\ASUS\Desktop\Blood Cell paper"
-```
-
-### 2. Create and activate a virtual environment
-
-**Windows (PowerShell):**
-```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
-```
-
-**Windows (CMD):**
-```cmd
-python -m venv venv
-venv\Scripts\activate.bat
-```
-
-**macOS / Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### 3. Install dependencies
-
-```bash
-pip install -r backend/requirements.txt
-```
-
-> **Note — PyTorch Geometric extras:**  
-> `torch-geometric` depends on `torch-scatter` and `torch-sparse`. If the install above fails, install the PyG wheels matching your PyTorch + CUDA version:
-> ```bash
-> pip install torch-scatter torch-sparse -f https://data.pyg.org/whl/torch-2.12.0+cpu.html
-> ```
-> Replace `cpu` with `cu118`, `cu121`, etc. if you have a GPU.
-
-### 4. Run the server
-
-```bash
-cd backend
-uvicorn main:app --reload
-```
-
-Or on Windows without activating the venv first:
-
-```powershell
-cd "C:\Users\ASUS\Desktop\Blood Cell paper\backend"
-..\venv\Scripts\uvicorn.exe main:app --reload
-```
-
-### 5. Open the app
-
-| URL | Page |
-|-----|------|
-| http://127.0.0.1:8000 | Landing page |
-| http://127.0.0.1:8000/app | Classifier |
-| http://127.0.0.1:8000/health | Health check (JSON) |
-| http://127.0.0.1:8000/api/docs | Swagger API docs |
+## 🔬 Supported Blood Cell Types (8 Classes)
+The model is trained to recognize the following classes from standard microscopy imagery:
+1. **Basophil** – Rare WBC with large dark-staining granules.
+2. **Eosinophil** – Bilobed nucleus, red-orange granules.
+3. **Erythroblast** – Immature red blood cell precursor.
+4. **IG (Immature Granulocyte)** – Band-shaped or horseshoe nucleus.
+5. **Lymphocyte** – Small WBC, large round dark nucleus.
+6. **Monocyte** – Largest WBC, kidney-shaped nucleus.
+7. **Neutrophil** – Most common WBC, multi-lobed nucleus.
+8. **Platelet** – Tiny cell fragment, lacking a nucleus.
 
 ---
 
-## Project Structure
+## 🚀 Theoretical Approach & Pipeline Architecture
 
-```
-Blood Cell paper/
-├── backend/
-│   ├── main.py              ← FastAPI app, routes, model loading
-│   ├── model.py             ← BloodCellHybridGNN definition
-│   ├── preprocess.py        ← Image → graph + 3D mesh pipeline
-│   ├── bloodcell_hybrid_gnn.pth  ← Trained model weights
-│   ├── requirements.txt     ← Python dependencies
-│   ├── Procfile             ← Heroku / Render deployment
-│   ├── .env.example         ← Environment variable template
-│   ├── static/
-│   │   └── samples/         ← 80 sample images (10 per class)
-│   └── templates/
-│       ├── landing.html     ← Landing page (/)
-│       └── index.html       ← Classifier app (/app)
-└── venv/                    ← Virtual environment (not committed)
-```
+The core philosophy of CytoGraph is that the structural topology, precise shape contour, and chromatin density of a cell's nucleus can be better represented as an interconnected spatial graph rather than a flat matrix of pixels. 
 
----
+### Phase 1: 2D Data Preprocessing & Nucleus Isolation
+Instead of feeding full images directly into a neural network, the application extracts the biological structures that matter most:
+* **Color Space Transformation:** The raw BGR image is converted into HSV color space. We specifically target the Saturation (S) channel, which highly reacts to deeply stained genetic material (chromatin).
+* **Otsu Thresholding & Morphology:** A Gaussian blur paired with automatic Otsu thresholding isolates the nucleus. Morphological opening and closing operations with a 5x5 kernel clean the binary mask, ensuring the extracted boundary is free of scattered artifacts.
+* **Pixel Extraction:** The bounding box and all intra-nuclear RGB arrays and their true 2D coordinates are extracted for the next phase.
 
-## Environment Variables
+### Phase 2: 3D Cubic Mesh Generation
+Once the 2D nucleus footprint is extracted, we project it into a spatial 3D paradigm:
+* **6-Face Extrapolation:** The 2D coordinates are symmetrically projected onto a virtual 3D cube configuration (Front, Back, Right, Left, Top, Bottom faces) centered around the cell. 
+* **Node Generation:** The 2D pixels are subsampled spatially. Each node represents a 3D point containing spatial and color data: `[X, Y, Z, R_norm, G_norm, B_norm]`. The coordinates are Z-score normalized.
+* **Delaunay Triangulation:** We generate a continuous surface across the nodes using Delaunay triangulation. This maps 2D proximity into 3D structural integrity.
 
-Copy `.env.example` to `.env` and edit as needed:
+### Phase 3: Spatial Graph Embedding (Edges)
+To define the topological relationships for the Graph Neural Network:
+* Edges are routed between spatial nodes.
+* Each edge is embedded with 4 key attributes:
+  1. `Euclidean Distance` between Node $A$ and Node $B$.
+  2. `Average Red (R)` across the edge.
+  3. `Average Green (G)` across the edge.
+  4. `Average Blue (B)` across the edge.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `HOST` | `0.0.0.0` | Server bind address |
-| `PORT` | `8000` | Server port |
-| `ALLOWED_ORIGINS` | `*` | CORS origins (comma-separated) |
-| `MAX_UPLOAD_MB` | `10` | Max upload file size in MB |
-| `WEIGHTS_PATH` | `backend/bloodcell_hybrid_gnn.pth` | Path to model weights |
+### Phase 4: Multi-Task Graph Neural Network
+The core intelligence engine uses a custom architecture built on **PyTorch Geometric**.
 
----
+* **The Encoder (GATv2Conv):**
+  We utilize a 3-block Multi-Head **GATv2Conv** (Graph Attention Network v2). Unlike standard GATs, traditional static attention limits the modeling capacity of nodes. GATv2 introduces dynamic attention, scaling dynamically and preventing attention dilution across the rich 3D mesh.
+  * *Block 1 & 2:* 4-head attention, stabilized dynamically via `GraphNorm` and activated with `GELU` (Gaussian Error Linear Units) for deeper gradient propagation.
+  * *Block 3:* Single-head attention reducing down to a latent node feature representation.
 
-## Cell Classes
-
-| Class | Description |
-|-------|-------------|
-| Basophil | Rare WBC with large dark-staining granules |
-| Eosinophil | Bilobed nucleus, red-orange granules |
-| Erythroblast | Immature red blood cell precursor |
-| IG (Immature Granulocyte) | Band-shaped or horseshoe nucleus |
-| Lymphocyte | Small WBC, large round dark nucleus |
-| Monocyte | Largest WBC, kidney-shaped nucleus |
-| Neutrophil | Most common WBC, multi-lobed nucleus |
-| Platelet | Tiny cell fragment, no nucleus |
+* **Dual-Head Output:**
+  * **Head 1 (Classification Decoder):** Extracts a global cell spatial signature by concatenating `global_mean_pool` and `global_max_pool` representations. A deep MLP (Linear -> BatchNorm -> GELU -> Dropout) calculates the logit probabilities for the 8 target cell types.
+  * **Head 2 (Anomaly & Structure Decoder):** A secondary linear pathway attempts to reconstruct the original node matrices. This acts as an auto-encoder style regularizer, heavily enriching the learned latent representations in the primary encoder and allowing it to intimately "understand" 3D cellular structure.
 
 ---
 
-## How the Pipeline Works
+## 🛠️ Tech Stack & Ecosystem
 
-1. **Upload** — Drop a JPG/PNG microscopy image or select one from the sample gallery
-2. **Segment** — HSV saturation channel → Otsu threshold → morphological cleanup → largest contour mask
-3. **Project** — Nucleus pixels mapped onto 6 faces of a 3D cube using polar coordinates
-4. **Graph** — Delaunay triangulation + sampled edges build a PyG `Data` object with 6-dim node features and 4-dim edge attributes
-5. **Classify** — BloodCellHybridGNN (3× GATv2Conv + dual pool + MLP) outputs 8-class softmax probabilities
-6. **Visualise** — Interactive Plotly.js 3D mesh with Solid / Nodes / Mesh+Nodes views + downloadable edge data CSV
-
----
-
-## Deployment
-
-### Render / Railway / Heroku
-
-The `Procfile` is already configured:
-```
-web: uvicorn main:app --host 0.0.0.0 --port $PORT
-```
-
-Set environment variables in your platform's dashboard. Make sure `bloodcell_hybrid_gnn.pth` is included in the deployment (not in `.gitignore`).
-
-### Docker (optional)
-
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY backend/ .
-RUN pip install --no-cache-dir -r requirements.txt
-EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-```
+- **Machine Learning & Graphs:** PyTorch 2.0+, PyTorch Geometric (PyG 2.7)
+- **Computer Vision:** OpenCV (`cv2`), SciPy, Matplotlib (Triangulation & 3D Projections)
+- **Backend API:** FastAPI (Async workflows), Uvicorn
+- **Frontend & Rendering:** HTML5, Jinja2 Templates, Plotly.js (WebGL 3D surface rendering), TailwindCSS
+- **Model format:** State dictionary loaded onto CPU/CUDA dynamically.
 
 ---
 
-## Stopping the Server
+## 📁 Repository Structure
 
-Press `Ctrl + C` in the terminal running uvicorn.
-
----
-
-## Tech Stack
-
-- **PyTorch 2.12 + PyTorch Geometric 2.7** — GATv2 graph neural network
-- **FastAPI 0.136 + Uvicorn** — async REST backend
-- **OpenCV + SciPy** — image segmentation and Delaunay triangulation
-- **Plotly.js 2.32** — WebGL 3D mesh visualisation
-- **TailwindCSS** — responsive UI
+```text
+CytoGraph/
+├── backend/                       # Production web server & API
+│   ├── main.py                    # FastAPI server & route handlers
+│   ├── model.py                   # PyTorch GATv2 custom model architecture
+│   ├── preprocess.py              # Vision pipeline: OpenCV → Graph 3D Mesh
+│   ├── bloodcell_hybrid_gnn.pth   # Pre-trained Model Weights
+│   ├── requirements.txt           # Python dependencies (FastAPI, PyTorch, PyG)
+│   ├── Procfile                   # Heroku / Render deployment config
+│   ├── .env.example               # Environment variables template
+│   ├── static/                    # Sample blood cell datasets bundled for UI
+│   └── templates/                 # UI HTML / Jinja logic
+├── bloodcells_dataset/            # Original RGB training images (Categorized)
+├── DataPreprocessing.ipynb        # Mathematical development of the 3D projection
+├── Model.ipynb                    # GNN dataset generation and model training loops
+└── training_history.csv           # Model metrics telemetry across epochs
